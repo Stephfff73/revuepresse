@@ -442,10 +442,9 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
   }}
 
   /* ---------------- PREMIUM MOTION ---------------- */
-  @keyframes fadeUp {{
-    from {{ opacity: 0; transform: translateY(22px); }}
-    to {{ opacity: 1; transform: translateY(0); }}
-  }}
+  /* Ces animations sont purement decoratives et ne conditionnent JAMAIS la
+     visibilite du contenu : un client mail qui bloque le JS/CSS anime doit
+     quand meme afficher un texte parfaitement lisible des le depart. */
   @keyframes softFloat {{
     0%, 100% {{ transform: translate3d(0,0,0) rotate(0deg); }}
     50% {{ transform: translate3d(0,-10px,0) rotate(.5deg); }}
@@ -458,23 +457,6 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
     0% {{ box-shadow: 0 0 0 0 rgba(235,41,93,.18); }}
     70% {{ box-shadow: 0 0 0 12px rgba(235,41,93,0); }}
     100% {{ box-shadow: 0 0 0 0 rgba(235,41,93,0); }}
-  }}
-
-  .cover {{
-    animation: fadeUp .8s var(--ease-premium) both;
-  }}
-  .cover-pattern {{
-    animation: softFloat 9s ease-in-out infinite;
-    transform-origin: center;
-  }}
-  .brand-line {{
-    animation: fadeUp .7s .08s var(--ease-premium) both;
-  }}
-  .cover h1 {{
-    animation: fadeUp .8s .16s var(--ease-premium) both;
-  }}
-  .cover-sub, .cover .intro, .cover-stats {{
-    animation: fadeUp .7s .24s var(--ease-premium) both;
   }}
 
   .stat {{
@@ -517,6 +499,17 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
   }}
 
   .article-card {{
+    /* Visible par defaut : ne repose jamais sur l'execution du JavaScript
+       (beaucoup de clients mail le bloquent). La reprise ci-dessous n'est
+       qu'un embellissement optionnel pour les navigateurs qui l'executent. */
+    opacity: 1;
+    transform: none;
+    transition:
+      box-shadow .35s var(--ease-premium),
+      border-color .25s ease,
+      transform .35s var(--ease-premium);
+  }}
+  .article-card.pre-reveal {{
     opacity: 0;
     transform: translateY(24px);
     transition:
@@ -1223,8 +1216,14 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
     }});
   }});
 
-  // Apparition progressive des cartes au fil du scroll.
+  // Apparition progressive des cartes au fil du scroll (JS uniquement :
+  // si ce script ne s'execute pas, les cartes restent simplement visibles
+  // par defaut grace au CSS — voir la regle .article-card).
   if ('IntersectionObserver' in window) {{
+    cards.forEach(function(card, index) {{
+      card.classList.add('pre-reveal');
+      card.style.transitionDelay = Math.min((index % 4) * 70, 210) + 'ms';
+    }});
     const revealObserver = new IntersectionObserver(function(entries) {{
       entries.forEach(function(entry) {{
         if (entry.isIntersecting) {{
@@ -1234,15 +1233,7 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
         }}
       }});
     }}, {{ rootMargin: '0px 0px -8% 0px', threshold: .08 }});
-
-    cards.forEach(function(card, index) {{
-      card.style.transitionDelay = Math.min((index % 4) * 70, 210) + 'ms';
-      revealObserver.observe(card);
-    }});
-  }} else {{
-    cards.forEach(function(card) {{
-      card.classList.add('is-visible');
-    }});
+    cards.forEach(function(card) {{ revealObserver.observe(card); }});
   }}
 
   // Mise en relief du thème courant.
