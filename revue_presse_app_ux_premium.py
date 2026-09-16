@@ -1837,4 +1837,3 @@ if st.session_state.articles:
     )
 else:
     st.info("Ajoutez au moins un article pour pouvoir generer la revue.")
-
