@@ -711,6 +711,12 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
     border-radius: 999px; background: rgba(235,41,93,.07);
     color: var(--rose); font-size: .60rem; letter-spacing: .10em;
   }}
+  .cover h1 span {{
+    display: block;
+  }}
+  .cover h1 {{
+    color: var(--rose);
+  }}
   .cover h1 {{
     max-width: 620px; margin: 18px 0 16px;
     color: var(--teal-dark); font-family: Georgia, "Times New Roman", serif;
@@ -1198,7 +1204,7 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
   <div class="cover-inner">
     <div class="cover-copy">
       <div class="brand-line"><span class="brand-dot"></span> DPIEC · Revue de presse <span class="edition-mini">ÉDITION PREMIUM</span></div>
-      <h1>{esc(titre_revue)}</h1>
+      <h1>{titre_affiche}</h1>
       <div class="cover-sub">
         <span class="edition-pill">{esc(numero_edition)}</span>
         <span class="date-pill">{esc(sous_titre)}</span>
@@ -1561,8 +1567,20 @@ st.markdown(
 
 with st.sidebar:
     st.header("Informations generales")
-    titre_revue = st.text_input("Titre de la revue", value="La Revue de Presse de la DPIEC")
+    titre_revue = st.text_input(
+        "Titre de la revue",
+        value="La Revue de Presse de la DPIEC"
+    )
     numero_edition = st.text_input("Numero d'edition", value="9ème édition")
+
+
+    # Titre utilisé uniquement pour l'affichage dans le header.
+    # Le champ de la sidebar reste totalement modifiable.
+    titre_affiche = titre_revue.replace(
+        "La Revue de Presse ",
+        "La Revue de Presse<br>",
+        1
+    )
 
     lundi = date.today() - timedelta(days=date.today().weekday())
     vendredi = lundi + timedelta(days=4)
@@ -1819,3 +1837,4 @@ if st.session_state.articles:
     )
 else:
     st.info("Ajoutez au moins un article pour pouvoir generer la revue.")
+
