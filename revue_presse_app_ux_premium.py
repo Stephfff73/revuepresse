@@ -49,6 +49,31 @@ LOGO_INLI_B64 = "iVBORw0KGgoAAAANSUhEUgAAAOEAAACpCAYAAADduFp7AAB+i0lEQVR4nOx9d3x
 DOSSIER_APP = Path(__file__).resolve().parent
 FICHIER_BROUILLON = DOSSIER_APP / "brouillon_revue_dpiec.json"
 
+# Visuel éditorial sans texte : il sert de décor au bandeau HTML et au bandeau Streamlit.
+# Le texte et les statistiques restent toujours dynamiques.
+COVER_IMAGE_PATH = DOSSIER_APP / "assets" / "a_wide_clean_modern_high_resolution_architectur.png"
+
+
+def image_file_to_data_uri(path, max_width=1800, quality=88):
+    """Convertit un visuel local en JPEG optimisé embarqué dans le HTML.
+
+    Le PNG source peut rester sur GitHub ; le HTML autonome reçoit une version
+    JPEG redimensionnée afin de limiter fortement son poids.
+    """
+    try:
+        if not path.exists():
+            return ""
+        with Image.open(path) as img:
+            img = img.convert("RGB")
+            if img.width > max_width:
+                ratio = max_width / img.width
+                img = img.resize((max_width, max(1, round(img.height * ratio))), Image.Resampling.LANCZOS)
+            buffer = io.BytesIO()
+            img.save(buffer, format="JPEG", quality=quality, optimize=True, progressive=True)
+        return "data:image/jpeg;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
+    except Exception:
+        return ""
+
 
 def charger_brouillon():
     if FICHIER_BROUILLON.exists():
@@ -271,6 +296,7 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
     nb_articles = len(articles)
     nb_themes = len(themes_actifs)
     temps_lecture = max(1, round(nb_articles * 45 / 60))
+    cover_image_uri = image_file_to_data_uri(COVER_IMAGE_PATH)
 
     def article_card(a, index, theme, featured=False):
         titre = esc(a.get("titre") or a.get("source") or "Article")
@@ -309,7 +335,7 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
                 <span class="article-number">01</span>
                 <span class="featured-label">À LA UNE</span>
                 <button class="image-trigger" type="button" aria-label="Agrandir la capture de « {titre} »">
-                  <img src="{a['image']}" alt="{titre}" loading="lazy" class="img-zoomable" {dims}>
+                  <img src="{a['image']}" alt="{titre}" loading="eager" fetchpriority="high" decoding="async" class="img-zoomable" {dims}>
                   <span class="zoom-hint">Cliquer pour agrandir <span>↗</span></span>
                 </button>
               </div>
@@ -326,7 +352,7 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
         return f"""
         <article class="article-card article-standard" data-recherche="{recherche}" data-theme="{theme_esc}">
           <button class="standard-image image-trigger" type="button" aria-label="Agrandir la capture de « {titre} »">
-            <img src="{a['image']}" alt="{titre}" loading="lazy" class="img-zoomable" {dims}>
+            <img src="{a['image']}" alt="{titre}" loading="lazy" decoding="async" class="img-zoomable" {dims}>
             <span class="zoom-icon">+</span>
           </button>
           <div class="standard-content">
@@ -605,34 +631,62 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
 
   .page {{ max-width: 1040px; margin: 0 auto; }}
 
-  /* ---------------- COVER ---------------- */
+  /* ---------------- COVER / HERO EDITORIAL ---------------- */
   .cover {{
     position: relative; overflow: hidden;
-    min-height: 430px;
-    background: linear-gradient(135deg, #FFF 0%, #FAFCFB 60%, #F2F7F6 100%);
+    min-height: 560px;
+    background: #EDF5F5;
     border-bottom: 1px solid var(--line);
+    isolation: isolate;
+  }}
+  .cover-media {{
+    position: absolute; inset: 0; z-index: -2;
+    width: 100%; height: 100%; object-fit: cover;
+    object-position: center;
+    transform: scale(1.015);
+    animation: coverKenBurns 14s var(--ease-soft) both;
+  }}
+  @keyframes coverKenBurns {{
+    from {{ transform: scale(1.015); }}
+    to {{ transform: scale(1.045); }}
+  }}
+  .cover-overlay {{
+    position: absolute; inset: 0; z-index: -1;
+    background:
+      linear-gradient(90deg, rgba(255,255,255,.985) 0%, rgba(255,255,255,.94) 34%, rgba(255,255,255,.62) 53%, rgba(255,255,255,.06) 76%),
+      linear-gradient(180deg, rgba(0,78,82,.04), rgba(0,78,82,.10));
   }}
   .cover-top {{
-    height: 10px;
-    background: linear-gradient(90deg, var(--rose) 0 32%, var(--teal) 32% 100%);
+    height: 8px;
+    background: linear-gradient(90deg, var(--rose) 0 30%, var(--teal) 30% 100%);
   }}
   .cover-pattern {{
-    position: absolute; inset: 0 0 0 auto; width: 44%;
-    background-image: radial-gradient(circle, rgba(0,78,82,.15) 1.4px, transparent 1.5px);
+    position: absolute; right: 0; top: 0; width: 28%; height: 48%;
+    background-image: radial-gradient(circle, rgba(0,78,82,.18) 1.2px, transparent 1.4px);
     background-size: 18px 18px;
     mask-image: linear-gradient(to left, #000, transparent);
-    opacity: .55;
-  }}
-  .cover-ribbon {{
-    position: absolute; left: 0; top: 34px; width: 250px; height: 205px; z-index: 1;
+    opacity: .38;
+    z-index: 0;
   }}
   .cover-inner {{
     position: relative; z-index: 2;
-    padding: 72px 64px 48px 190px;
+    max-width: 1180px; margin: 0 auto;
+    min-height: 552px;
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 64px 52px 70px;
+  }}
+  .cover-copy {{
+    width: min(650px, 68vw);
+    padding: 30px 34px 28px;
+    border: 1px solid rgba(255,255,255,.76);
+    border-radius: 24px;
+    background: linear-gradient(135deg, rgba(255,255,255,.90), rgba(255,255,255,.70));
+    box-shadow: 0 28px 80px rgba(0,46,48,.13);
+    backdrop-filter: blur(10px);
   }}
   .brand-line {{
-    display: flex; align-items: center; gap: 12px;
-    color: var(--teal); font-size: .76rem; font-weight: 800;
+    display: flex; align-items: center; flex-wrap: wrap; gap: 12px;
+    color: var(--teal); font-size: .74rem; font-weight: 900;
     letter-spacing: .14em; text-transform: uppercase;
   }}
   .brand-dot {{
@@ -642,51 +696,66 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
   }}
   .edition-mini {{
     display: inline-flex; align-items: center;
-    margin-left: 4px; padding: 4px 8px;
-    border: 1px solid rgba(235,41,93,.2);
-    border-radius: 999px;
-    background: rgba(235,41,93,.06);
-    color: var(--rose);
-    font-size: .62rem;
-    letter-spacing: .1em;
+    margin-left: 2px; padding: 5px 9px;
+    border: 1px solid rgba(235,41,93,.20);
+    border-radius: 999px; background: rgba(235,41,93,.07);
+    color: var(--rose); font-size: .60rem; letter-spacing: .10em;
   }}
   .cover h1 {{
-    max-width: 780px; margin: 20px 0 18px;
-    color: var(--rose); font-family: Georgia, "Times New Roman", serif;
-    font-size: clamp(2.6rem, 6vw, 4.8rem); line-height: .98;
-    letter-spacing: -.045em;
+    max-width: 620px; margin: 18px 0 16px;
+    color: var(--teal-dark); font-family: Georgia, "Times New Roman", serif;
+    font-size: clamp(2.8rem, 5.2vw, 4.65rem); line-height: .97;
+    letter-spacing: -.052em;
   }}
   .cover-sub {{
-    display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
-    margin-bottom: 24px;
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+    margin-bottom: 20px;
   }}
   .edition-pill {{
     display: inline-flex; align-items: center; gap: 8px;
-    padding: 8px 14px; border-radius: 999px;
+    padding: 8px 13px; border-radius: 999px;
     background: var(--teal); color: white;
-    font-size: .78rem; font-weight: 800; letter-spacing: .06em;
-    text-transform: uppercase;
+    font-size: .70rem; font-weight: 900; letter-spacing: .06em;
+    text-transform: uppercase; box-shadow: 0 8px 22px rgba(0,78,82,.18);
   }}
   .date-pill {{
     display: inline-flex; align-items: center;
-    padding: 8px 14px; border: 1px solid var(--line);
+    padding: 8px 13px; border: 1px solid rgba(0,78,82,.14);
     border-radius: 999px; background: rgba(255,255,255,.82);
-    color: var(--teal); font-weight: 700;
+    color: var(--teal); font-weight: 800; font-size: .78rem;
   }}
   .intro {{
-    max-width: 690px; margin: 0;
-    color: #465355; font-size: 1.08rem; line-height: 1.7;
+    max-width: 610px; margin: 0;
+    color: #405355; font-size: 1rem; line-height: 1.66;
   }}
-  .intro-placeholder {{ color: var(--muted); }}
+  .intro-placeholder {{ color: #5E7072; }}
   .cover-stats {{
-    display: flex; flex-wrap: wrap; gap: 26px;
-    margin-top: 34px; padding-top: 22px;
-    border-top: 1px solid rgba(0,78,82,.12);
+    display: flex; flex-wrap: wrap; gap: 0;
+    margin-top: 25px; padding-top: 18px;
+    border-top: 1px solid rgba(0,78,82,.13);
   }}
-  .stat strong {{ display: block; color: var(--teal); font-size: 1.28rem; }}
+  .stat {{
+    min-width: 116px; padding-right: 20px; margin-right: 20px;
+    border-right: 1px solid rgba(0,78,82,.12);
+  }}
+  .stat:last-child {{ border-right: 0; margin-right: 0; }}
+  .stat strong {{ display: block; color: var(--teal); font-size: 1.35rem; line-height: 1.05; }}
   .stat span {{
-    color: var(--muted); font-size: .74rem; font-weight: 800;
-    letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); font-size: .65rem; font-weight: 900;
+    letter-spacing: .09em; text-transform: uppercase;
+  }}
+  .cover-side-label {{
+    position: absolute; right: 34px; bottom: 38px; z-index: 3;
+    display: flex; align-items: center; gap: 9px;
+    padding: 9px 13px; border-radius: 999px;
+    color: white; background: rgba(0,78,82,.88);
+    box-shadow: 0 12px 30px rgba(0,46,48,.22);
+    font-size: .67rem; font-weight: 900; letter-spacing: .10em;
+    text-transform: uppercase;
+  }}
+  .cover-side-label::before {{
+    content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--rose);
+    box-shadow: 0 0 0 4px rgba(235,41,93,.18);
   }}
   .cover-stripe {{
     height: 9px;
@@ -992,8 +1061,11 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
   }}
 
   @media (max-width: 820px) {{
-    .cover-inner {{ padding: 60px 28px 42px 120px; }}
-    .cover-ribbon {{ width: 170px; height: 140px; }}
+    .cover {{ min-height: 520px; }}
+    .cover-inner {{ min-height: 512px; padding: 52px 28px 55px; }}
+    .cover-copy {{ width: min(680px, 100%); padding: 26px 27px; }}
+    .cover-media {{ object-position: 58% center; }}
+    .cover-side-label {{ right: 22px; bottom: 30px; }}
     .toc, .theme-section {{ padding-left: 22px; padding-right: 22px; }}
     .toolbar {{ padding: 10px 22px; grid-template-columns: 1fr; }}
     .result-status {{ margin-left: 22px; margin-right: 22px; }}
@@ -1002,12 +1074,17 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
     .featured-content {{ padding: 28px; }}
   }}
   @media (max-width: 620px) {{
-    .cover {{ min-height: auto; }}
-    .cover-pattern {{ width: 70%; opacity: .35; }}
-    .cover-ribbon {{ display: none; }}
-    .cover-inner {{ padding: 42px 22px 34px; }}
+    .cover {{ min-height: 600px; }}
+    .cover-media {{ object-position: 67% center; opacity: .82; }}
+    .cover-overlay {{ background: linear-gradient(90deg, rgba(255,255,255,.97), rgba(255,255,255,.80)); }}
+    .cover-pattern {{ width: 70%; opacity: .25; }}
+    .cover-inner {{ min-height: 592px; padding: 36px 16px 62px; justify-content: center; }}
+    .cover-copy {{ padding: 23px 20px; border-radius: 20px; background: rgba(255,255,255,.86); }}
     .cover h1 {{ font-size: 2.65rem; }}
-    .cover-stats {{ gap: 18px; }}
+    .cover-stats {{ gap: 14px; }}
+    .stat {{ min-width: 0; padding-right: 13px; margin-right: 13px; }}
+    .stat strong {{ font-size: 1.18rem; }}
+    .cover-side-label {{ right: 16px; bottom: 27px; font-size: .58rem; padding: 8px 10px; }}
     .toc-grid {{ grid-template-columns: 1fr; }}
     .toc-head {{ align-items: start; flex-direction: column; gap: 4px; }}
     .section-heading {{ align-items: start; flex-direction: column; gap: 5px; }}
@@ -1030,22 +1107,26 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
 
 <header class="cover">
   <div class="cover-top"></div>
+  {f'<img class="cover-media" src="{cover_image_uri}" alt="" aria-hidden="true">' if cover_image_uri else ''}
+  <div class="cover-overlay"></div>
   <div class="cover-pattern"></div>
-  {RIBBON_COUVERTURE_SVG}
   <div class="cover-inner">
-    <div class="brand-line"><span class="brand-dot"></span> DPIEC · Revue de presse <span class="edition-mini">ÉDITION PREMIUM</span></div>
-    <h1>{esc(titre_revue)}</h1>
-    <div class="cover-sub">
-      <span class="edition-pill">{esc(numero_edition)}</span>
-      <span class="date-pill">{esc(sous_titre)}</span>
-    </div>
-    {intro_html}
-    <div class="cover-stats">
-      <div class="stat"><strong>{nb_articles}</strong><span>Articles</span></div>
-      <div class="stat"><strong>{nb_themes}</strong><span>Thèmes</span></div>
-      <div class="stat"><strong>≃{temps_lecture} min</strong><span>Lecture</span></div>
+    <div class="cover-copy">
+      <div class="brand-line"><span class="brand-dot"></span> DPIEC · Revue de presse <span class="edition-mini">ÉDITION PREMIUM</span></div>
+      <h1>{esc(titre_revue)}</h1>
+      <div class="cover-sub">
+        <span class="edition-pill">{esc(numero_edition)}</span>
+        <span class="date-pill">{esc(sous_titre)}</span>
+      </div>
+      {intro_html}
+      <div class="cover-stats" aria-label="Chiffres clés de l'édition">
+        <div class="stat"><strong>{nb_articles}</strong><span>Articles</span></div>
+        <div class="stat"><strong>{nb_themes}</strong><span>Thèmes</span></div>
+        <div class="stat"><strong>≃{temps_lecture} min</strong><span>Lecture</span></div>
+      </div>
     </div>
   </div>
+  <div class="cover-side-label">Logement · Immobilier · Territoires</div>
   <div class="cover-stripe"></div>
 </header>
 
@@ -1085,7 +1166,7 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
 </main>
 
 <footer class="footer">
-  <img src="data:image/png;base64,{LOGO_INLI_B64}" alt="in'li - Groupe Action Logement">
+  <img src="data:image/png;base64,{LOGO_INLI_B64}" alt="in'li - Groupe Action Logement" decoding="async">
   <p>Revue de presse préparée par SA pour un usage interne · {nb_articles} article{'s' if nb_articles > 1 else ''}</p>
 </footer>
 <div class="footer-stripe"></div>
@@ -1288,75 +1369,58 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
 # --------------------------------------------------------------------------
 
 st.markdown(
-    """
+    f"""
 <style>
-    .block-container { padding-top: 1.3rem; padding-bottom: 2rem; }
-    #MainMenu, footer {visibility: hidden;}
-    .bandeau-app {
-        position: relative;
-        overflow: hidden;
-        border-radius: 14px;
-        background: linear-gradient(120deg, #013E42 0%, #004E52 55%, #0C6E70 100%);
-        padding: 26px 30px 24px;
-        margin-bottom: 10px;
-        box-shadow: 0 14px 30px -18px rgba(0, 20, 20, 0.55);
-    }
-    .bandeau-app::after {
-        content: "";
-        position: absolute;
-        top: -50px;
-        right: -40px;
-        width: 190px;
-        height: 190px;
-        border-radius: 50%;
-        background: radial-gradient(circle, rgba(235, 41, 93, 0.35), transparent 70%);
-        pointer-events: none;
-    }
-    .bandeau-app .ligne-haut {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-    }
-    .bandeau-app .icone {
-        width: 46px;
-        height: 46px;
-        border-radius: 12px;
-        background: rgba(255, 255, 255, 0.14);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-    }
-    .bandeau-app h1 {
-        color: #FFFFFF;
-        font-family: "Source Sans Pro", sans-serif;
-        font-weight: 800;
-        font-size: 1.65rem;
-        margin: 0;
-        letter-spacing: -0.01em;
-    }
-    .bandeau-app .sous-titre {
-        color: rgba(255, 255, 255, 0.8);
-        font-size: 0.94rem;
-        margin: 8px 0 0 60px;
-        max-width: 64ch;
-    }
-    .badge-brouillon {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        margin: 14px 0 0 60px;
-        background: rgba(255, 255, 255, 0.14);
-        border: 1px solid rgba(255, 255, 255, 0.28);
-        color: #FFFFFF;
-        font-size: 0.82rem;
-        font-weight: 600;
-        padding: 5px 14px;
-        border-radius: 999px;
-    }
-    @media (max-width: 640px) {
-        .bandeau-app .sous-titre, .badge-brouillon { margin-left: 0; margin-top: 12px; }
-    }
+    .block-container {{ padding-top: 1.15rem; padding-bottom: 2rem; }}
+    #MainMenu, footer {{ visibility: hidden; }}
+    .bandeau-app {{
+        position: relative; overflow: hidden; min-height: 205px;
+        border-radius: 22px;
+        background: #004E52;
+        margin-bottom: 14px;
+        box-shadow: 0 18px 42px -22px rgba(0, 20, 20, 0.65);
+        isolation: isolate;
+    }}
+    .bandeau-app::before {{
+        content: ""; position:absolute; inset:0; z-index:-2;
+        background-image: linear-gradient(90deg, rgba(0,62,66,.98) 0%, rgba(0,78,82,.88) 44%, rgba(0,78,82,.28) 100%), url("{_BANNIERE_APP_URI}");
+        background-size: cover; background-position: center right;
+        transform: scale(1.01);
+    }}
+    .bandeau-app::after {{
+        content: ""; position:absolute; right:-80px; top:-100px; width:250px; height:250px;
+        border-radius:50%; background:radial-gradient(circle, rgba(235,41,93,.36), transparent 68%);
+        pointer-events:none; z-index:-1;
+    }}
+    .bandeau-app .ligne-haut {{ display:flex; align-items:center; gap:14px; }}
+    .bandeau-app .icone {{
+        width:46px; height:46px; border-radius:13px; background:rgba(255,255,255,.13);
+        display:flex; align-items:center; justify-content:center; flex-shrink:0;
+        border:1px solid rgba(255,255,255,.16); backdrop-filter:blur(8px);
+    }}
+    .bandeau-app h1 {{ color:#fff; font-family:"Source Sans Pro",sans-serif; font-weight:800; font-size:1.72rem; margin:0; letter-spacing:-.015em; }}
+    .bandeau-app .sous-titre {{ color:rgba(255,255,255,.84); font-size:.92rem; margin:9px 0 0 60px; max-width:66ch; line-height:1.45; }}
+    .badge-brouillon {{
+        display:inline-flex; align-items:center; gap:6px; margin:13px 0 0 60px;
+        background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.22);
+        color:#fff; font-size:.77rem; font-weight:650; padding:6px 12px; border-radius:999px;
+        backdrop-filter:blur(8px);
+    }}
+    .app-statbar {{ display:flex; gap:9px; margin:16px 0 0 60px; }}
+    .app-stat {{
+        min-width:88px; padding:8px 11px; border-radius:11px;
+        background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.14);
+        color:#fff; backdrop-filter:blur(7px);
+    }}
+    .app-stat strong {{ display:block; font-size:1rem; line-height:1.1; }}
+    .app-stat span {{ display:block; font-size:.61rem; color:rgba(255,255,255,.68); text-transform:uppercase; letter-spacing:.07em; margin-top:2px; }}
+    @media (max-width: 640px) {{
+        .bandeau-app {{ min-height:240px; }}
+        .bandeau-app::before {{ background-position: 70% center; }}
+        .bandeau-app .sous-titre, .badge-brouillon, .app-statbar {{ margin-left:0; }}
+        .bandeau-app h1 {{ font-size:1.42rem; }}
+        .app-statbar {{ flex-wrap:wrap; }}
+    }}
 </style>
 """,
     unsafe_allow_html=True,
@@ -1370,6 +1434,8 @@ _ICONE_JOURNAL_SVG = """<svg width="24" height="24" viewBox="0 0 24 24" fill="no
   <line x1="6.5" y1="17" x2="14" y2="17" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round"/>
 </svg>"""
 
+_BANNIERE_APP_URI = image_file_to_data_uri(COVER_IMAGE_PATH, max_width=1400, quality=84)
+
 _badge_brouillon_html = (
     f'<div class="badge-brouillon">💾 {len(st.session_state.articles)} article(s) enregistré(s) '
     'automatiquement — vous pouvez fermer la session et reprendre plus tard</div>'
@@ -1380,12 +1446,19 @@ _badge_brouillon_html = (
 st.markdown(
     f"""
 <div class="bandeau-app">
-  <div class="ligne-haut">
-    <div class="icone">{_ICONE_JOURNAL_SVG}</div>
-    <h1>Revue de presse de la DPIEC</h1>
+  <div style="padding:26px 30px 23px">
+    <div class="ligne-haut">
+      <div class="icone">{_ICONE_JOURNAL_SVG}</div>
+      <h1>Revue de presse de la DPIEC</h1>
+    </div>
+    <p class="sous-titre">Composez une édition claire, élégante et immédiatement partageable sur l’actualité du logement, de l’immobilier et des territoires.</p>
+    {_badge_brouillon_html}
+    <div class="app-statbar">
+      <div class="app-stat"><strong>{len(st.session_state.articles)}</strong><span>articles</span></div>
+      <div class="app-stat"><strong>{len(st.session_state.themes)}</strong><span>thèmes</span></div>
+      <div class="app-stat"><strong>HTML</strong><span>autonome</span></div>
+    </div>
   </div>
-  <p class="sous-titre">Déposez vos captures d'écran, complétez les quelques champs ci-dessous, puis générez une page reprenant l'identité visuelle in'li — à envoyer ou publier pour vos collègues.</p>
-  {_badge_brouillon_html}
 </div>
 """,
     unsafe_allow_html=True,
