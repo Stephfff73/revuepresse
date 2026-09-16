@@ -265,76 +265,43 @@ LOUPE_SVG = """
 
 
 def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, themes_ordre):
-    """Génère une revue de presse HTML éditoriale V3 : immersive, hiérarchisée et autonome.
+    """Génère une revue de presse HTML éditorialisée, responsive et autonome.
 
-    Priorités design :
-    1. couverture photographique forte avec texte dynamique ;
-    2. hiérarchie À LA UNE / FOCUS / VEILLE ;
-    3. sommaire graphique avec répartition par thème ;
-    4. barre de recherche persistante et compte de résultats ;
-    5. véritable fin de lecture + footer institutionnel premium ;
-    6. logo in'li placé dans un cartouche clair pour rester lisible sur fond teal ;
-    7. responsive, accessible et sans dépendance externe.
+    Principes UX/UI :
+    - hiérarchie éditoriale forte : couverture > sommaire > une > cartes ;
+    - lecture rapide : source/date, résumé, CTA clairement séparés ;
+    - navigation persistante par thème + recherche instantanée ;
+    - lecture confortable sur desktop et mobile ;
+    - captures consultables en grand sans quitter la page ;
+    - HTML autonome : aucune dépendance externe nécessaire au fonctionnement.
     """
     def esc(value):
         return html.escape(str(value or ""), quote=True)
 
     def safe_url(value):
+        """N'autorise que les URL web classiques dans le HTML généré."""
         value = str(value or "").strip()
         if value.lower().startswith(("https://", "http://")):
             return esc(value)
         return ""
-
-    cover_image_uri = image_file_to_data_uri(COVER_IMAGE_PATH, max_width=1800, quality=86)
 
     articles_par_theme = {t: [] for t in themes_ordre}
     for a in articles:
         articles_par_theme.setdefault(a.get("theme", "Autre"), []).append(a)
 
     themes_actifs = [t for t in themes_ordre if articles_par_theme.get(t)]
-    themes_actifs += [
-        t for t in articles_par_theme
-        if t not in themes_actifs and articles_par_theme[t]
-    ]
+    # Sécurité si un article porte un thème absent de la liste configurée.
+    themes_actifs += [t for t in articles_par_theme if t not in themes_actifs and articles_par_theme[t]]
 
     nb_articles = len(articles)
     nb_themes = len(themes_actifs)
     temps_lecture = max(1, round(nb_articles * 45 / 60))
-    date_edition = esc(sous_titre)
+    cover_image_uri = image_file_to_data_uri(COVER_IMAGE_PATH)
 
-    # Une palette stable par thème : elle sert uniquement d'accent graphique.
-    theme_colors = ["rose", "teal", "violet", "green", "orange", "blue"]
-
-    def theme_color(index):
-        return theme_colors[index % len(theme_colors)]
-
-    # L'image de couverture est le décor : tous les textes restent HTML/dynamiques.
-    cover_style = (
-        f'background-image: linear-gradient(90deg, rgba(0,45,48,.97) 0%, '
-        f'rgba(0,70,73,.86) 42%, rgba(0,70,73,.18) 76%, rgba(0,0,0,.02) 100%), '
-        f'url("{cover_image_uri}");'
-        if cover_image_uri else
-        'background: linear-gradient(135deg,#003f43,#087276);'
-    )
-
-    # Détermine les niveaux éditoriaux globaux.
-    flat_articles = []
-    for theme_index, theme in enumerate(themes_actifs):
-        for a in articles_par_theme[theme]:
-            flat_articles.append((theme_index, theme, a))
-
-    featured_global = flat_articles[0] if flat_articles else None
-    focus_global = flat_articles[1:3] if len(flat_articles) > 1 else []
-
-    def article_meta(a):
+    def article_card(a, index, theme, featured=False):
+        titre = esc(a.get("titre") or a.get("source") or "Article")
         source = esc(a.get("source"))
         date_article = esc(a.get("date"))
-        if source and date_article:
-            return f'<span class="source-chip">{source}</span><span class="meta-sep">·</span><span>{date_article}</span>'
-        return source or date_article
-
-    def article_card(a, index, theme, featured=False, focus=False):
-        titre = esc(a.get("titre") or a.get("source") or "Article")
         synthese = esc(a.get("synthese"))
         lien = safe_url(a.get("lien"))
         theme_esc = esc(theme)
@@ -344,53 +311,38 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
         )
         dims = (
             f'width="{int(a["largeur"])}" height="{int(a["hauteur"])}"'
-            if str(a.get("largeur", "")).isdigit()
-            and str(a.get("hauteur", "")).isdigit()
+            if str(a.get("largeur", "")).isdigit() and str(a.get("hauteur", "")).isdigit()
             else ""
         )
+        source_meta = (
+            f'<span class="source-chip">{source}</span>'
+            f'<span class="meta-sep">·</span><span>{date_article}</span>'
+            if source
+            else date_article
+        )
         summary = f'<p class="synthese">{synthese}</p>' if synthese else ""
-        meta = article_meta(a)
         cta = (
             f'<a class="lien-source" href="{lien}" target="_blank" rel="noopener noreferrer">'
-            f'Lire l’article <span class="cta-arrow">↗</span></a>'
+            f'<span>Lire l’article</span><span class="cta-arrow">↗</span></a>'
             if lien else ""
         )
+        numero = index + 1
 
         if featured:
             return f"""
             <article class="article-card article-featured" data-recherche="{recherche}" data-theme="{theme_esc}">
               <div class="featured-image-wrap">
+                <span class="article-number">01</span>
                 <span class="featured-label">À LA UNE</span>
-                <span class="article-number article-number-light">01</span>
                 <button class="image-trigger" type="button" aria-label="Agrandir la capture de « {titre} »">
-                  <img src="{a['image']}" alt="{titre}" loading="eager" decoding="async" class="img-zoomable" {dims}>
-                  <span class="zoom-hint">Agrandir ↗</span>
+                  <img src="{a['image']}" alt="{titre}" loading="eager" fetchpriority="high" decoding="async" class="img-zoomable" {dims}>
+                  <span class="zoom-hint">Cliquer pour agrandir <span>↗</span></span>
                 </button>
               </div>
               <div class="featured-content">
                 <div class="article-kicker">{theme_esc}</div>
                 <h3>{titre}</h3>
-                <div class="meta">{meta}</div>
-                {summary}
-                {cta}
-              </div>
-            </article>
-            """
-
-        if focus:
-            return f"""
-            <article class="article-card article-focus" data-recherche="{recherche}" data-theme="{theme_esc}">
-              <button class="focus-image image-trigger" type="button" aria-label="Agrandir la capture de « {titre} »">
-                <img src="{a['image']}" alt="{titre}" loading="lazy" decoding="async" class="img-zoomable" {dims}>
-                <span class="focus-badge">FOCUS</span>
-              </button>
-              <div class="focus-content">
-                <div class="article-topline">
-                  <span class="article-number">{index + 1:02d}</span>
-                  <span class="article-theme">{theme_esc}</span>
-                </div>
-                <h3>{titre}</h3>
-                <div class="meta">{meta}</div>
+                <div class="meta">{source_meta}</div>
                 {summary}
                 {cta}
               </div>
@@ -405,25 +357,31 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
           </button>
           <div class="standard-content">
             <div class="article-topline">
-              <span class="article-number">{index + 1:02d}</span>
+              <span class="article-number">{numero:02d}</span>
               <span class="article-theme">{theme_esc}</span>
             </div>
             <h3>{titre}</h3>
-            <div class="meta">{meta}</div>
+            <div class="meta">{source_meta}</div>
             {summary}
             {cta}
           </div>
         </article>
         """
 
-    # Sommaire graphique.
+    theme_colors = ["rose", "teal", "violet", "green", "orange", "blue"]
+
+    def theme_color(index):
+        return theme_colors[index % len(theme_colors)]
+
     sommaire_html = "\n".join(
         f"""
         <a class="toc-item" href="#theme-{i}" style="--theme-accent:var(--{theme_color(i)})">
           <span class="toc-index">{i + 1:02d}</span>
           <span class="toc-main">
             <strong>{esc(theme)}</strong>
-            <span class="toc-bar"><i style="width:{max(12, round(len(articles_par_theme[theme]) / max(1, nb_articles) * 100))}%"></i></span>
+            <span class="toc-bar">
+              <i style="width:{max(12, round(len(articles_par_theme[theme]) / max(1, nb_articles) * 100))}%"></i>
+            </span>
           </span>
           <span class="toc-count">{len(articles_par_theme[theme])}</span>
           <span class="toc-arrow">→</span>
@@ -438,56 +396,38 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
         for i, theme in enumerate(themes_actifs)
     )
 
-    # Construit les sections. La première carte globale est À LA UNE,
-    # les deux suivantes sont FOCUS, puis la revue revient à la veille standard.
-    global_index = 0
     sections_html = ""
-    for theme_index, theme in enumerate(themes_actifs):
+    article_global_index = 0
+    for i, theme in enumerate(themes_actifs):
+        theme_articles = articles_par_theme[theme]
         cards = ""
-        for local_index, a in enumerate(articles_par_theme[theme]):
-            is_featured = featured_global is not None and a is featured_global[2]
-            is_focus = any(a is item[2] for item in focus_global)
+        for idx, a in enumerate(theme_articles):
             cards += article_card(
                 a,
-                global_index,
+                article_global_index,
                 theme,
-                featured=is_featured,
-                focus=is_focus,
+                featured=(idx == 0),
             )
-            global_index += 1
+            article_global_index += 1
 
-        accent = theme_color(theme_index)
         sections_html += f"""
-        <section class="theme-section" id="theme-{theme_index}" data-theme-section="{esc(theme)}" style="--theme-accent:var(--{accent})">
+        <section class="theme-section" id="theme-{i}" data-theme-section="{esc(theme)}">
           <div class="section-heading">
             <div>
-              <span class="section-overline">THÈME {theme_index + 1:02d}</span>
+              <span class="section-overline">THÈME {i + 1:02d}</span>
               <h2>{esc(theme)}</h2>
             </div>
-            <span class="section-count">{len(articles_par_theme[theme])} article{'s' if len(articles_par_theme[theme]) > 1 else ''}</span>
+            <span class="section-count">{len(theme_articles)} article{'s' if len(theme_articles) > 1 else ''}</span>
           </div>
-          <div class="article-list" data-theme-index="{theme_index}">{cards}</div>
+          <div class="article-list" data-theme-index="{i}">{cards}</div>
           <a class="retour-sommaire" href="#sommaire">↑ Revenir au sommaire</a>
         </section>
         """
 
     intro_html = (
-        f'<p class="cover-intro">{esc(intro)}</p>'
-        if intro
-        else '<p class="cover-intro">Les informations essentielles du logement, de l’immobilier et des territoires réunies en un seul regard.</p>'
-    )
-
-    # Logo : on le place dans un cartouche clair. Il reste donc lisible même
-    # si le PNG du logo contient ses couleurs originales.
-    footer_logo = (
-        f'<div class="footer-logo-shell"><img src="data:image/png;base64,{LOGO_INLI_B64}" '
-        f'alt="in’li - Groupe Action Logement"></div>'
-    )
-
-    end_message = (
-        f"Vous avez parcouru les {nb_articles} articles de cette édition."
-        if nb_articles else
-        "Votre revue de presse est prête à être parcourue."
+        f'<p class="intro">{esc(intro)}</p>'
+        if intro else
+        '<p class="intro intro-placeholder">Les informations essentielles de la semaine, réunies en un seul regard.</p>'
     )
 
     return f"""<!DOCTYPE html>
@@ -496,215 +436,755 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#004E52">
-<meta name="description" content="{esc(titre_revue)} — revue de presse DPIEC">
-<title>{esc(titre_revue)} · DPIEC</title>
+<title>{esc(titre_revue)}</title>
 <style>
-:root {{
-  --rose:#EB295D; --rose-dark:#C2184E;
-  --teal:#004E52; --teal-dark:#01383B; --teal-light:#0C7778;
-  --violet:#6C4BC1; --green:#168A6B; --orange:#C66A25; --blue:#2877A7;
-  --ink:#162122; --muted:#687477; --line:#E1E8E7;
-  --surface:#fff; --canvas:#F5F8F7; --soft:#EEF3F2;
-  --shadow-sm:0 8px 24px rgba(0,46,48,.07);
-  --shadow-md:0 20px 55px rgba(0,46,48,.13);
-  --ease:cubic-bezier(.22,1,.36,1);
-}}
-*{{box-sizing:border-box}}
-html{{scroll-behavior:smooth}}
-body{{
-  margin:0;background:
-  radial-gradient(circle at 8% 5%,rgba(235,41,93,.055),transparent 25rem),
-  radial-gradient(circle at 92% 18%,rgba(0,78,82,.06),transparent 30rem),
-  var(--canvas);color:var(--ink);
-  font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  line-height:1.58;-webkit-font-smoothing:antialiased
-}}
-button,input{{font:inherit}} a{{color:inherit}}
-:focus-visible{{outline:3px solid rgba(235,41,93,.4);outline-offset:3px}}
-@keyframes rise{{from{{opacity:0;transform:translateY(20px)}}to{{opacity:1;transform:none}}}}
-@keyframes kenburns{{from{{transform:scale(1.02)}}to{{transform:scale(1.07)}}}}
-@keyframes pulse{{0%,100%{{box-shadow:0 0 0 0 rgba(235,41,93,.2)}}50%{{box-shadow:0 0 0 9px rgba(235,41,93,0)}}}}
-@keyframes sheen{{from{{transform:translateX(-130%)}}to{{transform:translateX(130%)}}}}
-.reading-progress{{position:fixed;left:0;top:0;width:0;height:4px;background:linear-gradient(90deg,var(--rose),var(--teal-light));z-index:9999}}
-.page{{max-width:1120px;margin:0 auto}}
-.cover{{
-  position:relative;min-height:620px;overflow:hidden;color:#fff;
-  background:#003f43;isolation:isolate
-}}
-.cover-media{{position:absolute;inset:0;z-index:-2;background-position:center;background-size:cover;animation:kenburns 16s ease-out both}}
-.cover-overlay{{position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,rgba(0,43,46,.98) 0%,rgba(0,62,66,.90) 38%,rgba(0,70,73,.48) 65%,rgba(0,0,0,.05) 100%)}}
-.cover-top{{height:8px;background:linear-gradient(90deg,var(--rose) 0 28%,var(--teal) 28% 100%)}}
-.cover-grid{{position:absolute;inset:8px 0 0;background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);background-size:48px 48px;mask-image:linear-gradient(to right,rgba(0,0,0,.8),transparent 72%);pointer-events:none}}
-.cover-inner{{max-width:1120px;margin:auto;padding:76px 56px 64px;position:relative}}
-.cover-kicker{{display:flex;align-items:center;gap:12px;font-size:.72rem;font-weight:900;letter-spacing:.16em;text-transform:uppercase}}
-.cover-kicker-dot{{width:9px;height:9px;border-radius:50%;background:var(--rose);animation:pulse 2.8s ease-out infinite}}
-.edition-badge{{display:inline-flex;padding:6px 10px;border:1px solid rgba(255,255,255,.22);border-radius:999px;background:rgba(255,255,255,.1);backdrop-filter:blur(8px);font-size:.62rem;letter-spacing:.1em}}
-.cover h1{{max-width:780px;margin:28px 0 20px;font-family:Georgia,"Times New Roman",serif;font-size:clamp(3.2rem,7vw,6.5rem);line-height:.91;letter-spacing:-.055em;color:#fff;animation:rise .8s var(--ease) both}}
-.cover-rule{{width:96px;height:4px;border-radius:10px;background:var(--rose);margin:24px 0}}
-.cover-subrow{{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}}
-.edition-pill,.date-pill{{display:inline-flex;align-items:center;padding:8px 13px;border-radius:999px;font-size:.76rem;font-weight:850}}
-.edition-pill{{background:#fff;color:var(--teal)}}
-.date-pill{{border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.1);color:#fff;backdrop-filter:blur(8px)}}
-.cover-intro{{max-width:650px;margin:0;color:rgba(255,255,255,.84);font-size:1.05rem;line-height:1.7}}
-.cover-stats{{display:flex;flex-wrap:wrap;gap:12px;margin-top:34px}}
-.stat-card{{min-width:145px;padding:15px 18px;border:1px solid rgba(255,255,255,.16);border-radius:15px;background:rgba(0,35,37,.34);backdrop-filter:blur(12px);box-shadow:0 14px 32px rgba(0,0,0,.12);transition:transform .3s var(--ease),background .3s ease}}
-.stat-card:hover{{transform:translateY(-5px);background:rgba(0,35,37,.48)}}
-.stat-card strong{{display:block;font-family:Georgia,serif;font-size:1.75rem;color:#fff;line-height:1}}
-.stat-card span{{display:block;margin-top:6px;color:rgba(255,255,255,.68);font-size:.65rem;font-weight:850;letter-spacing:.1em;text-transform:uppercase}}
-.cover-bottom{{position:absolute;right:0;bottom:0;display:flex;align-items:flex-end;gap:0}}
-.cover-bottom .shape-teal{{width:260px;height:120px;background:var(--teal-dark);clip-path:polygon(28% 0,100% 0,100% 100%,0 100%)}}
-.cover-bottom .shape-pink{{width:180px;height:90px;background:var(--rose);clip-path:polygon(38% 0,100% 0,100% 100%,0 100%);margin-left:-50px}}
-.cover-credit{{position:absolute;right:34px;bottom:24px;color:rgba(255,255,255,.7);font-size:.65rem;letter-spacing:.08em;text-transform:uppercase}}
-.toc{{margin:42px auto 26px;padding:0 42px}}
-.toc-head{{display:flex;justify-content:space-between;align-items:end;gap:20px;margin-bottom:16px}}
-.eyebrow{{color:var(--rose);font-size:.7rem;font-weight:900;letter-spacing:.15em;text-transform:uppercase}}
-.toc h2{{margin:5px 0 0;color:var(--teal);font-family:Georgia,serif;font-size:2rem;letter-spacing:-.03em}}
-.toc-total{{color:var(--muted);font-size:.82rem;font-weight:700}}
-.toc-grid{{display:grid;grid-template-columns:1fr 1fr;gap:10px}}
-.toc-item{{display:grid;grid-template-columns:38px 1fr 30px 22px;gap:12px;align-items:center;padding:15px 14px;background:#fff;border:1px solid var(--line);border-left:3px solid var(--theme-accent);border-radius:13px;text-decoration:none;transition:.3s var(--ease)}}
-.toc-item:hover{{transform:translateY(-3px);box-shadow:var(--shadow-sm);border-color:rgba(0,78,82,.2)}}
-.toc-index{{display:grid;place-items:center;width:30px;height:30px;border-radius:8px;background:color-mix(in srgb,var(--theme-accent) 12%,white);color:var(--theme-accent);font-size:.7rem;font-weight:900}}
-.toc-main strong{{display:block;font-size:.82rem}}
-.toc-bar{{display:block;height:4px;margin-top:7px;border-radius:5px;background:#edf2f1;overflow:hidden}}
-.toc-bar i{{display:block;height:100%;border-radius:5px;background:var(--theme-accent)}}
-.toc-count{{color:var(--muted);font-size:.8rem;font-weight:900;text-align:center}}
-.toc-arrow{{color:var(--rose);font-weight:900}}
-.toolbar{{position:sticky;top:0;z-index:100;display:grid;grid-template-columns:minmax(260px,1fr) auto;gap:12px;align-items:center;margin:16px 0 36px;padding:11px 42px;background:rgba(245,248,247,.88);border-block:1px solid var(--line);backdrop-filter:blur(18px);transition:box-shadow .3s ease}}
-.toolbar.scrolled{{box-shadow:0 18px 45px rgba(0,46,48,.14);background:rgba(255,255,255,.93)}}
-.search-box{{position:relative}}
-.search-box svg{{position:absolute;left:14px;top:50%;transform:translateY(-50%);pointer-events:none}}
-#recherche-input{{width:100%;padding:11px 44px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);outline:none}}
-#recherche-input:focus{{border-color:var(--teal-light);box-shadow:0 0 0 4px rgba(12,119,120,.1)}}
-.clear-search{{display:none;position:absolute;right:7px;top:50%;transform:translateY(-50%);width:29px;height:29px;border:0;border-radius:50%;background:var(--soft);color:var(--teal);cursor:pointer}}
-.clear-search.visible{{display:block}}
-.nav-sticky{{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none}}
-.nav-sticky::-webkit-scrollbar{{display:none}}
-.pill{{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:8px 11px;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--muted);font-size:.72rem;font-weight:850;text-decoration:none}}
-.pill span{{min-width:18px;padding:2px 5px;border-radius:999px;background:var(--soft);font-size:.62rem;text-align:center}}
-.pill:hover,.pill.actif{{background:var(--teal);border-color:var(--teal);color:#fff}}
-.result-status{{display:none;margin:-22px 42px 25px;color:var(--muted);font-size:.82rem;font-weight:750}}
-.result-status.visible{{display:block}}
-.no-result{{display:none;margin:40px 42px;padding:34px;border:1px dashed #c8d3d1;border-radius:16px;text-align:center;background:#fff;color:var(--muted)}}
-.no-result.visible{{display:block}}
-.theme-section{{max-width:1120px;margin:0 auto 76px;padding:0 42px;scroll-margin-top:92px}}
-.section-heading{{display:flex;justify-content:space-between;align-items:end;gap:20px;margin-bottom:18px;border-bottom:1px solid var(--line);padding-bottom:14px}}
-.section-heading h2{{margin:4px 0 0;color:var(--teal);font-family:Georgia,serif;font-size:clamp(1.7rem,3vw,2.35rem);letter-spacing:-.035em;line-height:1.05}}
-.section-overline{{color:var(--theme-accent);font-size:.68rem;font-weight:900;letter-spacing:.15em}}
-.section-count{{padding-bottom:4px;color:var(--muted);font-size:.76rem;font-weight:850}}
-.article-list{{display:grid;gap:15px}}
-.article-card{{position:relative;overflow:hidden;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 2px 0 rgba(0,0,0,.015);opacity:0;transform:translateY(20px);transition:opacity .65s var(--ease),transform .65s var(--ease),box-shadow .3s var(--ease),border-color .25s ease}}
-.article-card.is-visible{{opacity:1;transform:none}}
-.article-card:hover{{transform:translateY(-5px);border-color:rgba(0,78,82,.2);box-shadow:var(--shadow-md)}}
-.article-featured{{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(320px,.92fr);min-height:410px}}
-.featured-image-wrap{{position:relative;min-height:410px;background:#e8efed;overflow:hidden}}
-.featured-image-wrap::after{{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.02),transparent 55%,rgba(0,0,0,.22));pointer-events:none}}
-.image-trigger{{display:block;position:relative;width:100%;height:100%;padding:0;border:0;background:transparent;cursor:zoom-in}}
-.featured-image-wrap img{{width:100%;height:100%;min-height:410px;object-fit:cover;display:block;transition:transform .8s var(--ease)}}
-.article-card:hover .image-trigger img{{transform:scale(1.035)}}
-.featured-label,.focus-badge{{position:absolute;z-index:4;padding:6px 10px;border-radius:7px;background:var(--rose);color:#fff;font-size:.62rem;font-weight:900;letter-spacing:.12em}}
-.featured-label{{left:18px;top:18px}}
-.article-number{{display:inline-grid;place-items:center;width:31px;height:31px;border-radius:8px;background:var(--soft);color:var(--teal);font-size:.67rem;font-weight:900}}
-.article-number-light{{position:absolute;right:18px;top:18px;z-index:4;background:rgba(255,255,255,.92)}}
-.zoom-hint{{position:absolute;right:15px;bottom:15px;z-index:4;padding:7px 10px;border-radius:999px;background:rgba(255,255,255,.92);color:var(--teal);font-size:.64rem;font-weight:850}}
-.featured-content{{display:flex;flex-direction:column;justify-content:center;padding:42px}}
-.article-kicker,.article-theme{{color:var(--rose);font-size:.67rem;font-weight:900;letter-spacing:.11em;text-transform:uppercase}}
-.featured-content h3{{margin:9px 0 12px;color:var(--teal-dark);font-family:Georgia,serif;font-size:clamp(1.65rem,3vw,2.35rem);line-height:1.07;letter-spacing:-.035em}}
-.meta{{display:flex;flex-wrap:wrap;gap:7px;align-items:center;color:var(--muted);font-size:.75rem}}
-.source-chip{{color:var(--teal);font-weight:900}}
-.meta-sep{{opacity:.5}}
-.synthese{{margin:18px 0 22px;color:#4c595a;font-size:.92rem;line-height:1.68}}
-.lien-source{{display:inline-flex;align-items:center;gap:8px;width:fit-content;margin-top:auto;padding:10px 13px;border-radius:10px;background:var(--teal);color:#fff;text-decoration:none;font-size:.75rem;font-weight:900;position:relative;overflow:hidden}}
-.lien-source::after{{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 15%,rgba(255,255,255,.25) 48%,transparent 72%);transform:translateX(-130%)}}
-.lien-source:hover::after{{animation:sheen .7s var(--ease)}}
-.article-focus{{display:grid;grid-template-columns:300px 1fr;min-height:235px}}
-.focus-image{{position:relative;min-height:235px;overflow:hidden;background:#e8efed}}
-.focus-image img{{width:100%;height:100%;object-fit:cover;display:block;transition:transform .6s var(--ease)}}
-.article-focus:hover .focus-image img{{transform:scale(1.035)}}
-.focus-badge{{left:14px;top:14px;background:var(--teal)}}
-.focus-content{{display:flex;flex-direction:column;padding:25px 28px}}
-.article-topline{{display:flex;align-items:center;gap:10px;margin-bottom:8px}}
-.article-focus h3{{margin:0 0 7px;color:var(--ink);font-family:Georgia,serif;font-size:1.45rem;line-height:1.17;letter-spacing:-.02em}}
-.article-focus .synthese{{font-size:.86rem;margin:11px 0 13px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}}
-.article-focus .lien-source,.article-standard .lien-source{{background:transparent;color:var(--rose);border:1px solid rgba(235,41,93,.22);padding:7px 10px}}
-.article-focus .lien-source:hover,.article-standard .lien-source:hover{{background:var(--rose);color:#fff}}
-.article-standard{{display:grid;grid-template-columns:190px 1fr;min-height:190px}}
-.standard-image{{position:relative;overflow:hidden;background:#e8efed;min-height:190px}}
-.standard-image img{{width:100%;height:100%;object-fit:cover;display:block;transition:transform .5s var(--ease)}}
-.article-standard:hover .standard-image img{{transform:scale(1.035)}}
-.zoom-icon{{position:absolute;right:10px;top:10px;display:grid;place-items:center;width:29px;height:29px;border-radius:50%;background:rgba(255,255,255,.94);color:var(--teal);font-weight:900}}
-.standard-content{{min-width:0;display:flex;flex-direction:column;padding:21px 25px}}
-.standard-content h3{{margin:0 0 6px;color:var(--ink);font-family:Georgia,serif;font-size:1.23rem;line-height:1.18}}
-.standard-content .synthese{{margin:10px 0 13px;font-size:.83rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}}
-.retour-sommaire{{display:inline-block;margin-top:14px;color:var(--muted);font-size:.73rem;font-weight:850;text-decoration:none}}
-.retour-sommaire:hover{{color:var(--rose)}}
-.end-reading{{max-width:1040px;margin:8px auto 0;padding:55px 42px 60px;text-align:center}}
-.end-line{{height:1px;background:linear-gradient(90deg,transparent,var(--line),transparent);margin-bottom:34px}}
-.end-kicker{{color:var(--rose);font-size:.67rem;font-weight:900;letter-spacing:.16em;text-transform:uppercase}}
-.end-reading h2{{margin:8px 0;color:var(--teal);font-family:Georgia,serif;font-size:2rem}}
-.end-reading p{{margin:0;color:var(--muted);font-size:.85rem}}
-.back-top{{display:inline-flex;margin-top:20px;padding:9px 13px;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--teal);font-size:.74rem;font-weight:850;text-decoration:none}}
-.footer{{position:relative;overflow:hidden;margin-top:0;padding:46px 42px 40px;background:linear-gradient(135deg,#01383B 0%,#004E52 70%,#075F61 100%);color:#fff}}
-.footer::before{{content:"";position:absolute;right:-100px;top:-130px;width:330px;height:330px;border-radius:50%;background:radial-gradient(circle,rgba(235,41,93,.34),transparent 67%)}}
-.footer-inner{{position:relative;z-index:2;max-width:1040px;margin:auto;display:grid;grid-template-columns:1.15fr .85fr;gap:42px;align-items:center}}
-.footer-logo-shell{{display:inline-flex;align-items:center;justify-content:center;width:126px;min-height:58px;padding:9px 15px;border-radius:14px;background:rgba(255,255,255,.97);box-shadow:0 12px 30px rgba(0,0,0,.18);margin-bottom:18px}}
-.footer-logo-shell img{{display:block;width:96px;height:auto;max-height:48px;object-fit:contain}}
-.footer-kicker{{color:#fff;font-size:.64rem;font-weight:900;letter-spacing:.16em;text-transform:uppercase;opacity:.72}}
-.footer h3{{margin:7px 0 9px;font-family:Georgia,serif;font-size:1.55rem;line-height:1.1}}
-.footer p{{margin:0;color:rgba(255,255,255,.7);font-size:.77rem;line-height:1.6}}
-.footer-stats{{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}}
-.footer-stat{{padding:15px;border:1px solid rgba(255,255,255,.13);border-radius:13px;background:rgba(255,255,255,.06)}}
-.footer-stat strong{{display:block;font-family:Georgia,serif;font-size:1.35rem}}
-.footer-stat span{{display:block;margin-top:4px;color:rgba(255,255,255,.62);font-size:.6rem;font-weight:850;letter-spacing:.08em;text-transform:uppercase}}
-.footer-bottom{{position:relative;z-index:2;max-width:1040px;margin:28px auto 0;padding-top:16px;border-top:1px solid rgba(255,255,255,.13);display:flex;justify-content:space-between;gap:20px;color:rgba(255,255,255,.5);font-size:.63rem}}
-.footer-stripe{{height:10px;background:repeating-linear-gradient(-45deg,var(--rose),var(--rose) 10px,#fff 10px,#fff 20px)}}
-.lightbox{{display:none;position:fixed;inset:0;z-index:9998;align-items:center;justify-content:center;padding:25px;background:rgba(3,20,21,.95)}}
-.lightbox.open{{display:flex}}
-.lightbox-panel{{position:relative;width:min(1180px,100%);height:min(90vh,900px);display:flex;align-items:center;justify-content:center}}
-.lightbox img{{max-width:100%;max-height:100%;border-radius:9px;box-shadow:0 30px 90px rgba(0,0,0,.5)}}
-.lightbox-close{{position:absolute;right:0;top:-12px;transform:translateY(-100%);width:42px;height:42px;border:0;border-radius:50%;background:rgba(255,255,255,.12);color:#fff;cursor:pointer;font-size:25px}}
-.lightbox-caption{{position:absolute;left:50%;bottom:-7px;transform:translate(-50%,100%);max-width:90%;color:rgba(255,255,255,.78);font-size:.76rem;text-align:center}}
-@media(max-width:860px){{
-  .cover{{min-height:570px}}
-  .cover-inner{{padding:64px 28px 52px}}
-  .cover h1{{font-size:clamp(2.9rem,11vw,4.6rem)}}
-  .toc,.theme-section{{padding-left:22px;padding-right:22px}}
-  .toolbar{{padding:10px 22px;grid-template-columns:1fr}}
-  .result-status{{margin-left:22px;margin-right:22px}}
-  .article-featured{{grid-template-columns:1fr}}
-  .featured-image-wrap,.featured-image-wrap img{{min-height:300px;height:300px}}
-  .article-focus{{grid-template-columns:220px 1fr}}
-  .footer{{padding:40px 24px 34px}}
-  .footer-inner{{grid-template-columns:1fr}}
-}}
-@media(max-width:620px){{
-  .cover{{min-height:0}}
-  .cover-grid{{opacity:.3}}
-  .cover-inner{{padding:42px 20px 48px}}
-  .cover h1{{font-size:2.65rem}}
-  .cover-intro{{font-size:.94rem}}
-  .cover-stats{{gap:8px}}
-  .stat-card{{min-width:calc(50% - 4px);padding:12px}}
-  .stat-card strong{{font-size:1.45rem}}
-  .toc-grid{{grid-template-columns:1fr}}
-  .toc-head{{align-items:start;flex-direction:column;gap:4px}}
-  .section-heading{{align-items:start;flex-direction:column;gap:5px}}
-  .article-focus,.article-standard{{grid-template-columns:1fr}}
-  .focus-image,.standard-image{{height:205px;min-height:205px}}
-  .focus-content,.standard-content{{padding:19px}}
-  .footer-bottom{{flex-direction:column}}
-  .footer-stats{{grid-template-columns:1fr 1fr}}
-}}
-@media print{{
-  .toolbar,.reading-progress,.retour-sommaire,.zoom-hint,.zoom-icon,.lien-source{{display:none!important}}
-  body{{background:#fff}}
-  .cover{{break-after:page}}
-  .theme-section{{break-inside:avoid}}
-  .article-card{{box-shadow:none;break-inside:avoid;opacity:1;transform:none}}
-}}
-@media(prefers-reduced-motion:reduce){{
-  *,*::before,*::after{{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
-  .article-card{{opacity:1;transform:none}}
-}}
+  :root {{
+    --rose: #EB295D;
+    --rose-dark: #C2184E;
+    --teal: #004E52;
+    --teal-dark: #013E42;
+    --teal-light: #0C6E70;
+    --ink: #172021;
+    --muted: #667174;
+    --line: #E3E8E8;
+    --surface: #FFFFFF;
+    --canvas: #F7F8F7;
+    --soft: #EFF3F2;
+    --shadow-sm: 0 8px 24px rgba(0, 46, 48, .07);
+    --shadow-md: 0 18px 48px rgba(0, 46, 48, .12);
+    --radius: 18px;
+    --ease-premium: cubic-bezier(.22, 1, .36, 1);
+    --ease-soft: cubic-bezier(.16, 1, .3, 1);
+  }}
+
+  * {{ box-sizing: border-box; }}
+  html {{ scroll-behavior: smooth; }}
+  body {{
+    margin: 0;
+    background:
+      radial-gradient(circle at 8% 4%, rgba(235,41,93,.055), transparent 24rem),
+      radial-gradient(circle at 92% 14%, rgba(0,78,82,.065), transparent 30rem),
+      var(--canvas);
+    color: var(--ink);
+    font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    line-height: 1.58;
+    -webkit-font-smoothing: antialiased;
+  }}
+  button, input {{ font: inherit; }}
+  a {{ color: inherit; }}
+  :focus-visible {{
+    outline: 3px solid rgba(235,41,93,.38);
+    outline-offset: 3px;
+  }}
+
+  /* ---------------- PREMIUM MOTION ---------------- */
+  /* Ces animations sont purement decoratives et ne conditionnent JAMAIS la
+     visibilite du contenu : un client mail qui bloque le JS/CSS anime doit
+     quand meme afficher un texte parfaitement lisible des le depart. */
+  @keyframes softFloat {{
+    0%, 100% {{ transform: translate3d(0,0,0) rotate(0deg); }}
+    50% {{ transform: translate3d(0,-10px,0) rotate(.5deg); }}
+  }}
+  @keyframes shimmer {{
+    0% {{ background-position: -220% 0; }}
+    100% {{ background-position: 220% 0; }}
+  }}
+  @keyframes pulseRing {{
+    0% {{ box-shadow: 0 0 0 0 rgba(235,41,93,.18); }}
+    70% {{ box-shadow: 0 0 0 12px rgba(235,41,93,0); }}
+    100% {{ box-shadow: 0 0 0 0 rgba(235,41,93,0); }}
+  }}
+
+  .stat {{
+    transition: transform .35s var(--ease-premium), opacity .25s ease;
+  }}
+  .stat:hover {{ transform: translateY(-5px); }}
+  .stat strong {{ transition: letter-spacing .3s ease; }}
+  .stat:hover strong {{ letter-spacing: .025em; }}
+
+  .toc-item {{
+    position: relative;
+    overflow: hidden;
+    transition:
+      transform .35s var(--ease-premium),
+      box-shadow .35s var(--ease-premium),
+      border-color .25s ease;
+  }}
+  .toc-item::after {{
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      110deg,
+      transparent 0%,
+      rgba(255,255,255,.75) 45%,
+      transparent 62%
+    );
+    transform: translateX(-120%);
+    transition: transform .7s var(--ease-premium);
+    pointer-events: none;
+  }}
+  .toc-item:hover::after {{ transform: translateX(120%); }}
+
+  .toolbar {{
+    transition: box-shadow .35s ease, background .35s ease, transform .35s ease;
+  }}
+  .toolbar.scrolled {{
+    box-shadow: 0 18px 42px rgba(0,46,48,.14);
+    background: rgba(255,255,255,.92);
+  }}
+
+  .article-card {{
+    /* Visible par defaut : ne repose jamais sur l'execution du JavaScript
+       (beaucoup de clients mail le bloquent). La reprise ci-dessous n'est
+       qu'un embellissement optionnel pour les navigateurs qui l'executent. */
+    opacity: 1;
+    transform: none;
+    transition:
+      box-shadow .35s var(--ease-premium),
+      border-color .25s ease,
+      transform .35s var(--ease-premium);
+  }}
+  .article-card.pre-reveal {{
+    opacity: 0;
+    transform: translateY(24px);
+    transition:
+      opacity .65s var(--ease-premium),
+      transform .65s var(--ease-premium),
+      box-shadow .35s var(--ease-premium),
+      border-color .25s ease;
+  }}
+  .article-card.is-visible {{
+    opacity: 1;
+    transform: translateY(0);
+  }}
+  .article-card:hover {{
+    transform: translateY(-6px);
+    box-shadow: 0 24px 58px rgba(0,46,48,.14);
+  }}
+  .article-featured:hover {{
+    transform: translateY(-8px);
+  }}
+
+  .image-trigger img {{
+    transition: transform .8s var(--ease-premium), filter .5s ease;
+  }}
+  .image-trigger:hover img {{
+    transform: scale(1.045);
+    filter: saturate(1.04) contrast(1.02);
+  }}
+  .zoom-icon {{
+    transition: transform .3s var(--ease-premium), opacity .25s ease;
+  }}
+  .image-trigger:hover .zoom-icon {{
+    transform: scale(1.12) rotate(8deg);
+  }}
+
+  .lien-source {{
+    position: relative;
+    overflow: hidden;
+    transition: transform .3s var(--ease-premium), box-shadow .3s ease, background .25s ease;
+  }}
+  .lien-source::after {{
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, transparent 15%, rgba(255,255,255,.28) 48%, transparent 72%);
+    transform: translateX(-130%);
+  }}
+  .lien-source:hover::after {{
+    transform: translateX(130%);
+    transition: transform .7s var(--ease-premium);
+  }}
+  .lien-source:hover {{
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(235,41,93,.18);
+  }}
+
+  .lightbox.open {{
+    animation: fadeIn .25s ease both;
+  }}
+  @keyframes fadeIn {{
+    from {{ opacity: 0; }}
+    to {{ opacity: 1; }}
+  }}
+  .lightbox.open img {{
+    animation: lightboxIn .5s var(--ease-premium) both;
+  }}
+  @keyframes lightboxIn {{
+    from {{ opacity: 0; transform: scale(.94) translateY(14px); }}
+    to {{ opacity: 1; transform: scale(1) translateY(0); }}
+  }}
+
+  .no-result {{
+    transition: opacity .25s ease, transform .35s var(--ease-premium);
+  }}
+
+  @media (prefers-reduced-motion: reduce) {{
+    *, *::before, *::after {{
+      animation-duration: .01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: .01ms !important;
+    }}
+    .article-card {{
+      opacity: 1;
+      transform: none;
+    }}
+  }}
+
+  .reading-progress {{
+    position: fixed; inset: 0 0 auto 0; height: 4px; width: 0%;
+    background: linear-gradient(90deg, var(--rose), var(--teal-light));
+    z-index: 9999; transform-origin: left;
+  }}
+
+  .page {{ max-width: 1040px; margin: 0 auto; }}
+
+  /* ---------------- COVER / HERO EDITORIAL ---------------- */
+  .cover {{
+    position: relative; overflow: hidden;
+    min-height: 560px;
+    background: #EDF5F5;
+    border-bottom: 1px solid var(--line);
+    isolation: isolate;
+  }}
+  .cover-media {{
+    position: absolute; inset: 0; z-index: -2;
+    width: 100%; height: 100%; object-fit: cover;
+    object-position: center;
+    transform: scale(1.015);
+    animation: coverKenBurns 14s var(--ease-soft) both;
+  }}
+  @keyframes coverKenBurns {{
+    from {{ transform: scale(1.015); }}
+    to {{ transform: scale(1.045); }}
+  }}
+  .cover-overlay {{
+    position: absolute; inset: 0; z-index: -1;
+    background:
+      linear-gradient(90deg, rgba(255,255,255,.985) 0%, rgba(255,255,255,.94) 34%, rgba(255,255,255,.62) 53%, rgba(255,255,255,.06) 76%),
+      linear-gradient(180deg, rgba(0,78,82,.04), rgba(0,78,82,.10));
+  }}
+  .cover-top {{
+    height: 8px;
+    background: linear-gradient(90deg, var(--rose) 0 30%, var(--teal) 30% 100%);
+  }}
+  .cover-pattern {{
+    position: absolute; right: 0; top: 0; width: 28%; height: 48%;
+    background-image: radial-gradient(circle, rgba(0,78,82,.18) 1.2px, transparent 1.4px);
+    background-size: 18px 18px;
+    mask-image: linear-gradient(to left, #000, transparent);
+    opacity: .38;
+    z-index: 0;
+  }}
+  .cover-inner {{
+    position: relative; z-index: 2;
+    max-width: 1180px; margin: 0 auto;
+    min-height: 552px;
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 64px 52px 70px;
+  }}
+  .cover-copy {{
+    width: min(650px, 68vw);
+    padding: 30px 34px 28px;
+    border: 1px solid rgba(255,255,255,.76);
+    border-radius: 24px;
+    background: linear-gradient(135deg, rgba(255,255,255,.90), rgba(255,255,255,.70));
+    box-shadow: 0 28px 80px rgba(0,46,48,.13);
+    backdrop-filter: blur(10px);
+  }}
+  .brand-line {{
+    display: flex; align-items: center; flex-wrap: wrap; gap: 12px;
+    color: var(--teal); font-size: .74rem; font-weight: 900;
+    letter-spacing: .14em; text-transform: uppercase;
+  }}
+  .brand-dot {{
+    width: 9px; height: 9px; border-radius: 50%; background: var(--rose);
+    box-shadow: 0 0 0 5px rgba(235,41,93,.10);
+    animation: pulseRing 2.8s ease-out infinite;
+  }}
+  .edition-mini {{
+    display: inline-flex; align-items: center;
+    margin-left: 2px; padding: 5px 9px;
+    border: 1px solid rgba(235,41,93,.20);
+    border-radius: 999px; background: rgba(235,41,93,.07);
+    color: var(--rose); font-size: .60rem; letter-spacing: .10em;
+  }}
+  .cover h1 {{
+    max-width: 620px; margin: 18px 0 16px;
+    color: var(--teal-dark); font-family: Georgia, "Times New Roman", serif;
+    font-size: clamp(2.8rem, 5.2vw, 4.65rem); line-height: .97;
+    letter-spacing: -.052em;
+  }}
+  .cover-sub {{
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+    margin-bottom: 20px;
+  }}
+  .edition-pill {{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 13px; border-radius: 999px;
+    background: var(--teal); color: white;
+    font-size: .70rem; font-weight: 900; letter-spacing: .06em;
+    text-transform: uppercase; box-shadow: 0 8px 22px rgba(0,78,82,.18);
+  }}
+  .date-pill {{
+    display: inline-flex; align-items: center;
+    padding: 8px 13px; border: 1px solid rgba(0,78,82,.14);
+    border-radius: 999px; background: rgba(255,255,255,.82);
+    color: var(--teal); font-weight: 800; font-size: .78rem;
+  }}
+  .intro {{
+    max-width: 610px; margin: 0;
+    color: #405355; font-size: 1rem; line-height: 1.66;
+  }}
+  .intro-placeholder {{ color: #5E7072; }}
+  .cover-stats {{
+    display: flex; flex-wrap: wrap; gap: 0;
+    margin-top: 25px; padding-top: 18px;
+    border-top: 1px solid rgba(0,78,82,.13);
+  }}
+  .stat {{
+    min-width: 116px; padding-right: 20px; margin-right: 20px;
+    border-right: 1px solid rgba(0,78,82,.12);
+  }}
+  .stat:last-child {{ border-right: 0; margin-right: 0; }}
+  .stat strong {{ display: block; color: var(--teal); font-size: 1.35rem; line-height: 1.05; }}
+  .stat span {{
+    color: var(--muted); font-size: .65rem; font-weight: 900;
+    letter-spacing: .09em; text-transform: uppercase;
+  }}
+  .cover-side-label {{
+    position: absolute; right: 34px; bottom: 38px; z-index: 3;
+    display: flex; align-items: center; gap: 9px;
+    padding: 9px 13px; border-radius: 999px;
+    color: white; background: rgba(0,78,82,.88);
+    box-shadow: 0 12px 30px rgba(0,46,48,.22);
+    font-size: .67rem; font-weight: 900; letter-spacing: .10em;
+    text-transform: uppercase;
+  }}
+  .cover-side-label::before {{
+    content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--rose);
+    box-shadow: 0 0 0 4px rgba(235,41,93,.18);
+  }}
+  .cover-stripe {{
+    height: 9px;
+    background: repeating-linear-gradient(-45deg, var(--rose), var(--rose) 9px, white 9px, white 18px);
+  }}
+
+  /* ---------------- TOC ---------------- */
+  .toc {{
+    margin: 38px auto 22px; padding: 0 42px;
+  }}
+  .toc-head {{
+    display: flex; align-items: end; justify-content: space-between; gap: 20px;
+    margin-bottom: 14px;
+  }}
+  .eyebrow {{
+    color: var(--rose); font-size: .72rem; font-weight: 900;
+    letter-spacing: .14em; text-transform: uppercase;
+  }}
+  .toc h2 {{
+    margin: 5px 0 0; color: var(--teal);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.8rem; letter-spacing: -.025em;
+  }}
+  .toc-total {{ color: var(--muted); font-size: .86rem; }}
+  .toc-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }}
+  .toc-item {{
+    position: relative; overflow: hidden;
+    display: grid; grid-template-columns: 34px 1fr 30px 22px; gap: 10px;
+    align-items: center; padding: 14px 12px;
+    background: white; border: 1px solid var(--line);
+    border-left: 3px solid var(--theme-accent);
+    border-radius: 12px; text-decoration: none;
+    transition: transform .25s var(--ease-premium), box-shadow .25s var(--ease-premium), border-color .2s ease;
+  }}
+  .toc-item::after {{
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(110deg, transparent 0%, rgba(255,255,255,.8) 46%, transparent 62%);
+    transform: translateX(-120%); pointer-events: none;
+    transition: transform .65s var(--ease-premium);
+  }}
+  .toc-item:hover::after {{ transform: translateX(120%); }}
+  .toc-item:hover {{
+    transform: translateY(-3px); border-color: rgba(12,110,112,.35);
+    box-shadow: var(--shadow-sm);
+  }}
+  .toc-index {{
+    display: grid; place-items: center; width: 28px; height: 28px;
+    border-radius: 8px; background: color-mix(in srgb, var(--theme-accent) 12%, white);
+    color: var(--theme-accent); font-size: .72rem; font-weight: 900;
+  }}
+  .toc-main {{ min-width: 0; }}
+  .toc-main strong {{
+    display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-weight: 800;
+  }}
+  .toc-bar {{
+    display: block; height: 4px; margin-top: 7px; border-radius: 5px;
+    background: #edf2f1; overflow: hidden;
+  }}
+  .toc-bar i {{
+    display: block; height: 100%; border-radius: 5px; background: var(--theme-accent);
+  }}
+  .toc-count {{ color: var(--muted); font-size: .78rem; font-weight: 900; text-align: center; }}
+  .toc-arrow {{ color: var(--rose); font-weight: 900; }}
+
+  /* ---------------- TOOLBAR ---------------- */
+  .toolbar {{
+    position: sticky; top: 0; z-index: 100;
+    display: grid; grid-template-columns: minmax(230px, 1fr) auto;
+    gap: 12px; align-items: center;
+    margin: 18px auto 34px; padding: 12px 42px;
+    background: rgba(247,248,247,.92);
+    border-top: 1px solid rgba(227,232,232,.8);
+    border-bottom: 1px solid var(--line);
+    backdrop-filter: blur(16px);
+  }}
+  .search-box {{ position: relative; }}
+  .search-box svg {{
+    position: absolute; left: 15px; top: 50%; transform: translateY(-50%);
+    pointer-events: none;
+  }}
+  #recherche-input {{
+    width: 100%; padding: 12px 42px 12px 43px;
+    border: 1px solid var(--line); border-radius: 12px;
+    background: white; color: var(--ink); outline: none;
+  }}
+  #recherche-input:focus {{
+    border-color: var(--teal-light);
+    box-shadow: 0 0 0 4px rgba(12,110,112,.10);
+  }}
+  .clear-search {{
+    display: none; position: absolute; right: 8px; top: 50%;
+    transform: translateY(-50%); width: 28px; height: 28px;
+    border: 0; border-radius: 50%; background: var(--soft);
+    color: var(--teal); cursor: pointer;
+  }}
+  .clear-search.visible {{ display: block; }}
+  .nav-sticky {{
+    display: flex; gap: 7px; overflow-x: auto; scrollbar-width: none;
+    padding-bottom: 1px;
+  }}
+  .nav-sticky::-webkit-scrollbar {{ display: none; }}
+  .pill {{
+    flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px;
+    padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px;
+    background: white; color: var(--muted); font-size: .78rem; font-weight: 800;
+    text-decoration: none; transition: .18s;
+  }}
+  .pill span {{
+    min-width: 19px; padding: 2px 5px; border-radius: 999px;
+    background: var(--soft); font-size: .67rem; text-align: center;
+  }}
+  .pill:hover, .pill.actif {{ background: var(--teal); color: white; border-color: var(--teal); }}
+  .pill.actif span, .pill:hover span {{ background: rgba(255,255,255,.16); }}
+  .result-status {{
+    display: none; margin: -20px 42px 28px; color: var(--muted);
+    font-size: .86rem; font-weight: 700;
+  }}
+  .result-status.visible {{ display: block; }}
+  .no-result {{
+    display: none; margin: 40px 42px; padding: 30px;
+    border: 1px dashed #CBD4D3; border-radius: 16px;
+    text-align: center; color: var(--muted); background: white;
+  }}
+  .no-result.visible {{ display: block; }}
+
+  /* ---------------- SECTIONS ---------------- */
+  .theme-section {{
+    max-width: 1040px; margin: 0 auto 70px; padding: 0 42px;
+    scroll-margin-top: 86px;
+  }}
+  .section-heading {{
+    display: flex; align-items: end; justify-content: space-between;
+    gap: 20px; margin-bottom: 18px;
+    border-bottom: 1px solid var(--line); padding-bottom: 14px;
+  }}
+  .section-overline {{
+    color: var(--rose); font-size: .7rem; font-weight: 900;
+    letter-spacing: .14em;
+  }}
+  .section-heading h2 {{
+    margin: 4px 0 0; color: var(--teal);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: clamp(1.65rem, 3vw, 2.25rem);
+    letter-spacing: -.035em; line-height: 1.05;
+  }}
+  .section-count {{
+    color: var(--muted); font-size: .78rem; font-weight: 800;
+    white-space: nowrap; padding-bottom: 4px;
+  }}
+  .article-list {{ display: grid; gap: 14px; }}
+
+  .article-card {{
+    position: relative; overflow: hidden;
+    background: white; border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: 0 2px 0 rgba(0,0,0,.015);
+    transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+  }}
+  .article-card:hover {{
+    transform: translateY(-3px); border-color: rgba(0,78,82,.20);
+    box-shadow: var(--shadow-md);
+  }}
+  .article-featured {{
+    display: grid; grid-template-columns: minmax(0, 1.04fr) minmax(310px, .96fr);
+    min-height: 360px;
+  }}
+  .featured-image-wrap {{
+    position: relative; min-height: 360px; background: #E9EEEE;
+    overflow: hidden;
+  }}
+  .featured-image-wrap::after {{
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(0,0,0,.02), transparent 50%, rgba(0,0,0,.14));
+    pointer-events: none;
+  }}
+  .image-trigger {{
+    display: block; position: relative; width: 100%; height: 100%;
+    padding: 0; border: 0; background: transparent; cursor: zoom-in;
+  }}
+  .featured-image-wrap .image-trigger img {{
+    width: 100%; height: 100%; min-height: 360px; object-fit: cover; display: block;
+    transition: transform .45s ease;
+  }}
+  .article-card:hover .image-trigger img {{ transform: scale(1.025); }}
+  .featured-label {{
+    position: absolute; left: 18px; top: 18px; z-index: 4;
+    padding: 6px 9px; border-radius: 6px;
+    background: var(--rose); color: white; font-size: .65rem; font-weight: 900;
+    letter-spacing: .11em;
+  }}
+  .article-number {{
+    display: inline-grid; place-items: center;
+    width: 32px; height: 32px; border-radius: 9px;
+    background: var(--soft); color: var(--teal);
+    font-size: .68rem; font-weight: 900;
+  }}
+  .featured-image-wrap > .article-number {{
+    position: absolute; right: 18px; top: 18px; z-index: 4;
+    background: rgba(255,255,255,.92);
+  }}
+  .zoom-hint {{
+    position: absolute; right: 14px; bottom: 14px; z-index: 4;
+    padding: 7px 10px; border-radius: 999px;
+    background: rgba(255,255,255,.92); color: var(--teal);
+    font-size: .68rem; font-weight: 800;
+  }}
+  .zoom-icon {{
+    position: absolute; right: 10px; top: 10px; z-index: 2;
+    display: grid; place-items: center; width: 30px; height: 30px;
+    border-radius: 50%; background: rgba(255,255,255,.94);
+    color: var(--teal); font-weight: 900;
+  }}
+  .featured-content {{
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 38px 40px;
+  }}
+  .article-kicker, .article-theme {{
+    color: var(--rose); font-size: .68rem; font-weight: 900;
+    letter-spacing: .11em; text-transform: uppercase;
+  }}
+  .featured-content h3 {{
+    margin: 9px 0 12px; color: var(--teal-dark);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: clamp(1.55rem, 3vw, 2.2rem); line-height: 1.08;
+    letter-spacing: -.035em;
+  }}
+  .meta {{
+    display: flex; align-items: center; flex-wrap: wrap; gap: 7px;
+    color: var(--muted); font-size: .78rem;
+  }}
+  .source-chip {{ color: var(--teal); font-weight: 850; }}
+  .synthese {{
+    margin: 18px 0 22px; color: #465355; font-size: .96rem; line-height: 1.68;
+  }}
+  .lien-source {{
+    display: inline-flex; align-items: center; gap: 8px; width: fit-content;
+    margin-top: auto; padding: 10px 13px;
+    border-radius: 10px; background: var(--teal); color: white;
+    text-decoration: none; font-size: .78rem; font-weight: 850;
+    transition: background .18s, transform .18s;
+  }}
+  .lien-source:hover {{ background: var(--teal-light); transform: translateX(2px); }}
+  .cta-arrow {{ font-size: 1rem; line-height: 1; }}
+
+  .article-standard {{
+    display: grid; grid-template-columns: 190px 1fr;
+    min-height: 190px;
+  }}
+  .standard-image {{
+    position: relative; overflow: hidden; background: #E9EEEE;
+    min-height: 190px;
+  }}
+  .standard-image img {{
+    width: 100%; height: 100%; object-fit: cover; display: block;
+    transition: transform .4s ease;
+  }}
+  .standard-content {{
+    min-width: 0; display: flex; flex-direction: column;
+    padding: 22px 26px;
+  }}
+  .article-topline {{
+    display: flex; align-items: center; gap: 10px; margin-bottom: 7px;
+  }}
+  .standard-content .article-number {{ width: 26px; height: 26px; border-radius: 7px; font-size: .63rem; }}
+  .standard-content h3 {{
+    margin: 0 0 6px; color: var(--ink);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.28rem; line-height: 1.18; letter-spacing: -.02em;
+  }}
+  .standard-content .synthese {{
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+    overflow: hidden; margin: 10px 0 13px; font-size: .86rem;
+  }}
+  .standard-content .lien-source {{
+    margin-top: auto; padding: 7px 10px; background: transparent;
+    color: var(--rose); border: 1px solid rgba(235,41,93,.22);
+  }}
+  .standard-content .lien-source:hover {{ color: white; background: var(--rose); }}
+  .retour-sommaire {{
+    display: inline-block; margin-top: 14px; color: var(--muted);
+    font-size: .76rem; font-weight: 800; text-decoration: none;
+  }}
+  .retour-sommaire:hover {{ color: var(--rose); }}
+
+  /* ---------------- FOOTER ---------------- */
+  /* ---------------- FIN DE LECTURE + FOOTER ---------------- */
+  .end-reading {{
+    max-width: 1040px; margin: 4px auto 0; padding: 52px 42px 56px;
+    text-align: center;
+  }}
+  .end-line {{
+    height: 1px;
+    margin-bottom: 32px;
+    background: linear-gradient(90deg, transparent, var(--line), transparent);
+  }}
+  .end-kicker {{
+    color: var(--rose); font-size: .68rem; font-weight: 900;
+    letter-spacing: .16em; text-transform: uppercase;
+  }}
+  .end-reading h2 {{
+    margin: 7px 0 8px; color: var(--teal);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 2rem; line-height: 1.08; letter-spacing: -.03em;
+  }}
+  .end-reading p {{
+    margin: 0; color: var(--muted); font-size: .84rem;
+  }}
+  .back-top {{
+    display: inline-flex; margin-top: 20px; padding: 9px 14px;
+    border: 1px solid var(--line); border-radius: 999px;
+    background: white; color: var(--teal);
+    font-size: .74rem; font-weight: 850; text-decoration: none;
+    transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+  }}
+  .back-top:hover {{
+    transform: translateY(-2px); border-color: rgba(0,78,82,.25);
+    box-shadow: var(--shadow-sm);
+  }}
+  .footer {{
+    position: relative; overflow: hidden;
+    margin-top: 0; padding: 38px 24px 34px;
+    background: linear-gradient(135deg, #013E42 0%, #004E52 55%, #075F61 100%);
+    color: white; text-align: center;
+  }}
+  .footer::before {{
+    content: ""; position: absolute; right: -90px; top: -150px;
+    width: 310px; height: 310px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(235,41,93,.20), transparent 68%);
+    pointer-events: none;
+  }}
+  .footer-logo-shell {{
+    position: relative; z-index: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 126px; min-height: 58px; padding: 9px 15px;
+    margin-bottom: 14px; border-radius: 13px;
+    background: rgba(255,255,255,.98);
+    box-shadow: 0 10px 28px rgba(0,0,0,.16);
+  }}
+  .footer-logo-shell img {{
+    display: block; width: 96px; height: auto; max-height: 46px;
+    object-fit: contain; margin: 0;
+  }}
+  .footer p {{
+    position: relative; z-index: 1;
+    margin: 0; color: rgba(255,255,255,.82); font-size: .78rem;
+  }}
+  .footer-stripe {{
+    height: 10px;
+    background: repeating-linear-gradient(-45deg, var(--rose), var(--rose) 10px, white 10px, white 20px);
+  }}
+
+  /* ---------------- LIGHTBOX ---------------- */
+  .lightbox {{
+    display: none; position: fixed; inset: 0; z-index: 9998;
+    align-items: center; justify-content: center; padding: 26px;
+    background: rgba(3, 20, 21, .94);
+  }}
+  .lightbox.open {{ display: flex; }}
+  .lightbox-panel {{
+    position: relative; width: min(1180px, 100%); height: min(90vh, 900px);
+    display: flex; align-items: center; justify-content: center;
+  }}
+  .lightbox img {{
+    max-width: 100%; max-height: 100%; border-radius: 8px;
+    box-shadow: 0 30px 90px rgba(0,0,0,.5);
+  }}
+  .lightbox-close {{
+    position: absolute; right: 0; top: -12px; transform: translateY(-100%);
+    width: 42px; height: 42px; border: 0; border-radius: 50%;
+    background: rgba(255,255,255,.12); color: white; cursor: pointer;
+    font-size: 25px;
+  }}
+  .lightbox-close:hover {{ background: rgba(255,255,255,.22); }}
+  .lightbox-caption {{
+    position: absolute; left: 50%; bottom: -7px; transform: translate(-50%, 100%);
+    max-width: 90%; color: rgba(255,255,255,.78);
+    font-size: .78rem; text-align: center;
+  }}
+
+  @media (max-width: 820px) {{
+    .cover {{ min-height: 520px; }}
+    .cover-inner {{ min-height: 512px; padding: 52px 28px 55px; }}
+    .cover-copy {{ width: min(680px, 100%); padding: 26px 27px; }}
+    .cover-media {{ object-position: 58% center; }}
+    .cover-side-label {{ right: 22px; bottom: 30px; }}
+    .toc, .theme-section {{ padding-left: 22px; padding-right: 22px; }}
+    .toolbar {{ padding: 10px 22px; grid-template-columns: 1fr; }}
+    .result-status {{ margin-left: 22px; margin-right: 22px; }}
+    .article-featured {{ grid-template-columns: 1fr; }}
+    .featured-image-wrap, .featured-image-wrap .image-trigger img {{ min-height: 280px; height: 280px; }}
+    .featured-content {{ padding: 28px; }}
+  }}
+  @media (max-width: 620px) {{
+    .cover {{ min-height: 600px; }}
+    .cover-media {{ object-position: 67% center; opacity: .82; }}
+    .cover-overlay {{ background: linear-gradient(90deg, rgba(255,255,255,.97), rgba(255,255,255,.80)); }}
+    .cover-pattern {{ width: 70%; opacity: .25; }}
+    .cover-inner {{ min-height: 592px; padding: 36px 16px 62px; justify-content: center; }}
+    .cover-copy {{ padding: 23px 20px; border-radius: 20px; background: rgba(255,255,255,.86); }}
+    .cover h1 {{ font-size: 2.65rem; }}
+    .cover-stats {{ gap: 14px; }}
+    .stat {{ min-width: 0; padding-right: 13px; margin-right: 13px; }}
+    .stat strong {{ font-size: 1.18rem; }}
+    .cover-side-label {{ right: 16px; bottom: 27px; font-size: .58rem; padding: 8px 10px; }}
+    .toc-grid {{ grid-template-columns: 1fr; }}
+    .toc-head {{ align-items: start; flex-direction: column; gap: 4px; }}
+    .section-heading {{ align-items: start; flex-direction: column; gap: 5px; }}
+    .article-standard {{ grid-template-columns: 1fr; }}
+    .standard-image {{ min-height: 210px; height: 210px; }}
+    .standard-content {{ padding: 20px; }}
+    .footer {{ padding: 34px 22px; }}
+  }}
+  @media print {{
+    .toolbar, .reading-progress, .retour-sommaire, .zoom-hint, .zoom-icon, .lien-source {{ display: none !important; }}
+    body {{ background: white; }}
+    .cover {{ break-after: page; }}
+    .theme-section {{ break-inside: avoid; }}
+    .article-card {{ box-shadow: none; break-inside: avoid; }}
+  }}
 </style>
 </head>
 <body>
@@ -712,36 +1192,36 @@ button,input{{font:inherit}} a{{color:inherit}}
 
 <header class="cover" id="top">
   <div class="cover-top"></div>
-  <div class="cover-media" style="{cover_style}"></div>
+  {f'<img class="cover-media" src="{cover_image_uri}" alt="" aria-hidden="true">' if cover_image_uri else ''}
   <div class="cover-overlay"></div>
-  <div class="cover-grid"></div>
+  <div class="cover-pattern"></div>
   <div class="cover-inner">
-    <div class="cover-kicker">
-      <span class="cover-kicker-dot"></span>
-      DPIEC · REVUE DE PRESSE
-      <span class="edition-badge">ÉDITION PREMIUM</span>
-    </div>
-    <h1>{esc(titre_revue)}</h1>
-    <div class="cover-rule"></div>
-    <div class="cover-subrow">
-      <span class="edition-pill">{esc(numero_edition)}</span>
-      <span class="date-pill">{date_edition}</span>
-    </div>
-    {intro_html}
-    <div class="cover-stats">
-      <div class="stat-card"><strong>{nb_articles}</strong><span>Articles</span></div>
-      <div class="stat-card"><strong>{nb_themes}</strong><span>Thèmes</span></div>
-      <div class="stat-card"><strong>~{temps_lecture} min</strong><span>Lecture</span></div>
+    <div class="cover-copy">
+      <div class="brand-line"><span class="brand-dot"></span> DPIEC · Revue de presse <span class="edition-mini">ÉDITION PREMIUM</span></div>
+      <h1>{esc(titre_revue)}</h1>
+      <div class="cover-sub">
+        <span class="edition-pill">{esc(numero_edition)}</span>
+        <span class="date-pill">{esc(sous_titre)}</span>
+      </div>
+      {intro_html}
+      <div class="cover-stats" aria-label="Chiffres clés de l'édition">
+        <div class="stat"><strong>{nb_articles}</strong><span>Articles</span></div>
+        <div class="stat"><strong>{nb_themes}</strong><span>Thèmes</span></div>
+        <div class="stat"><strong>≃{temps_lecture} min</strong><span>Lecture</span></div>
+      </div>
     </div>
   </div>
-  <div class="cover-bottom"><div class="shape-teal"></div><div class="shape-pink"></div></div>
-  <div class="cover-credit">Logement · Immobilier · Territoires</div>
+  <div class="cover-side-label">Logement · Immobilier · Territoires</div>
+  <div class="cover-stripe"></div>
 </header>
 
 <main class="page">
   <nav class="toc" id="sommaire" aria-label="Sommaire">
     <div class="toc-head">
-      <div><span class="eyebrow">Navigation éditoriale</span><h2>Dans cette édition</h2></div>
+      <div>
+        <span class="eyebrow">Navigation éditoriale</span>
+        <h2>Dans cette édition</h2>
+      </div>
       <span class="toc-total">{nb_articles} article{'s' if nb_articles > 1 else ''} · {nb_themes} thème{'s' if nb_themes > 1 else ''}</span>
     </div>
     <div class="toc-grid">{sommaire_html}</div>
@@ -750,10 +1230,11 @@ button,input{{font:inherit}} a{{color:inherit}}
   <div class="toolbar" id="toolbar">
     <div class="search-box">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <circle cx="11" cy="11" r="7" stroke="#667477" stroke-width="2"/>
-        <path d="M16.5 16.5L21 21" stroke="#667477" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="11" cy="11" r="7" stroke="#667174" stroke-width="2"/>
+        <path d="M16.5 16.5L21 21" stroke="#667174" stroke-width="2" stroke-linecap="round"/>
       </svg>
-      <input id="recherche-input" type="search" placeholder="Rechercher un article, une source ou un thème…"
+      <input id="recherche-input" type="search"
+        placeholder="Rechercher un article, une source ou un thème…"
         aria-label="Rechercher dans la revue de presse">
       <button class="clear-search" id="clear-search" type="button" aria-label="Effacer la recherche">×</button>
     </div>
@@ -761,44 +1242,33 @@ button,input{{font:inherit}} a{{color:inherit}}
   </div>
 
   <div class="result-status" id="result-status"></div>
-  <div class="no-result" id="no-result"><strong>Aucun résultat</strong><br>Essayez un autre mot-clé, une source ou un thème.</div>
+  <div class="no-result" id="no-result">
+    <strong>Aucun résultat</strong><br>
+    Essayez un autre mot-clé, une source ou un thème.
+  </div>
 
   {sections_html}
 </main>
 
-<section class="end-reading">
+<section class="end-reading" aria-label="Fin de l’édition">
   <div class="end-line"></div>
   <div class="end-kicker">Fin de l’édition</div>
   <h2>Merci pour votre lecture</h2>
-  <p>{end_message} · {nb_themes} thème{'s' if nb_themes > 1 else ''} · environ {temps_lecture} min.</p>
+  <p>Vous avez parcouru les {nb_articles} article{'s' if nb_articles > 1 else ''} de cette édition. · {nb_themes} thème{'s' if nb_themes > 1 else ''} · environ {temps_lecture} min.</p>
   <a class="back-top" href="#top">↑ Revenir au début</a>
 </section>
 
 <footer class="footer">
-  <div class="footer-inner">
-    <div>
-      {footer_logo}
-      <div class="footer-kicker">DPIEC · Groupe ActionLogement</div>
-      <h3>L’actualité du logement et des territoires.</h3>
-      <p>Revue de presse préparée pour un usage interne · Édition {esc(numero_edition)} · {date_edition}</p>
-    </div>
-    <div class="footer-stats">
-      <div class="footer-stat"><strong>{nb_articles}</strong><span>Articles sélectionnés</span></div>
-      <div class="footer-stat"><strong>{nb_themes}</strong><span>Thèmes couverts</span></div>
-      <div class="footer-stat"><strong>~{temps_lecture} min</strong><span>Temps de lecture</span></div>
-      <div class="footer-stat"><strong>HTML</strong><span>Édition autonome</span></div>
-    </div>
+  <div class="footer-logo-shell">
+    <img src="data:image/png;base64,{LOGO_INLI_B64}" alt="in'li - Groupe Action Logement" decoding="async">
   </div>
-  <div class="footer-bottom">
-    <span>in’li · Groupe ActionLogement · DPIEC</span>
-    <span>Document de veille · Usage interne</span>
-  </div>
+  <p>Revue de presse préparée par SA pour un usage interne</p>
 </footer>
 <div class="footer-stripe"></div>
 
 <div class="lightbox" id="lightbox" aria-hidden="true">
   <div class="lightbox-panel">
-    <button class="lightbox-close" id="lightbox-close" type="button" aria-label="Fermer l’aperçu">×</button>
+    <button class="lightbox-close" id="lightbox-close" type="button" aria-label="Fermer l'aperçu">×</button>
     <img id="lightbox-img" src="" alt="">
     <div class="lightbox-caption" id="lightbox-caption"></div>
   </div>
@@ -806,80 +1276,171 @@ button,input{{font:inherit}} a{{color:inherit}}
 
 <script>
 (function() {{
+  const lightbox = document.getElementById('lightbox');
+  const lightboxImg = document.getElementById('lightbox-img');
+  const lightboxCaption = document.getElementById('lightbox-caption');
+  const closeBtn = document.getElementById('lightbox-close');
+
+  function openLightbox(img) {{
+    lightboxImg.src = img.src;
+    lightboxImg.alt = img.alt;
+    lightboxCaption.textContent = img.alt || '';
+    lightbox.classList.add('open');
+    lightbox.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    closeBtn.focus();
+  }}
+  function closeLightbox() {{
+    lightbox.classList.remove('open');
+    lightbox.setAttribute('aria-hidden', 'true');
+    lightboxImg.src = '';
+    document.body.style.overflow = '';
+  }}
+
+  document.querySelectorAll('.image-trigger').forEach(function(button) {{
+    button.addEventListener('click', function() {{
+      const img = button.querySelector('img');
+      if (img) openLightbox(img);
+    }});
+  }});
+  closeBtn.addEventListener('click', closeLightbox);
+  lightbox.addEventListener('click', function(e) {{
+    if (e.target === lightbox) closeLightbox();
+  }});
+  document.addEventListener('keydown', function(e) {{
+    if (e.key === 'Escape' && lightbox.classList.contains('open')) closeLightbox();
+  }});
+
   const input = document.getElementById('recherche-input');
-  const clearBtn = document.getElementById('clear-search');
-  const status = document.getElementById('result-status');
+  const clear = document.getElementById('clear-search');
+  const resultStatus = document.getElementById('result-status');
   const noResult = document.getElementById('no-result');
+  const sections = Array.from(document.querySelectorAll('.theme-section'));
   const cards = Array.from(document.querySelectorAll('.article-card'));
   const pills = Array.from(document.querySelectorAll('.pill'));
-  const sections = Array.from(document.querySelectorAll('.theme-section'));
   const toolbar = document.getElementById('toolbar');
+  let activeTheme = '';
 
-  function applyFilter() {{
-    const q = (input.value || '').trim().toLowerCase();
+  function normalize(value) {{
+    return (value || '').toLocaleLowerCase('fr').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }}
+
+  function revealVisibleCards() {{
+    cards.forEach(function(card, index) {{
+      if (card.style.display === 'none') return;
+      if (card.dataset.revealed === '1') return;
+      card.dataset.revealed = '1';
+      card.style.transitionDelay = Math.min((index % 4) * 70, 210) + 'ms';
+      requestAnimationFrame(function() {{
+        card.classList.add('is-visible');
+      }});
+    }});
+  }}
+
+  function applyFilters() {{
+    const query = normalize(input.value.trim());
     let visible = 0;
 
-    cards.forEach(card => {{
-      const hay = (card.dataset.recherche || '').toLowerCase();
-      const ok = !q || hay.includes(q);
-      card.style.display = ok ? '' : 'none';
-      if (ok) visible++;
+    sections.forEach(function(section) {{
+      let sectionVisible = 0;
+      section.querySelectorAll('.article-card').forEach(function(card) {{
+        const text = normalize(card.getAttribute('data-recherche'));
+        const cardTheme = normalize(card.getAttribute('data-theme'));
+        const matchesQuery = !query || text.indexOf(query) !== -1;
+        const matchesTheme = !activeTheme || cardTheme === normalize(activeTheme);
+        const show = matchesQuery && matchesTheme;
+        card.style.display = show ? '' : 'none';
+        if (show) {{ sectionVisible++; visible++; }}
+      }});
+      section.style.display = sectionVisible ? '' : 'none';
     }});
 
-    sections.forEach(section => {{
-      const hasVisible = Array.from(section.querySelectorAll('.article-card'))
-        .some(card => card.style.display !== 'none');
-      section.style.display = hasVisible ? '' : 'none';
-    }});
+    clear.classList.toggle('visible', !!input.value);
+    const filtered = query || activeTheme;
+    resultStatus.textContent = filtered
+      ? visible + ' article' + (visible > 1 ? 's' : '') + ' affiché' + (visible > 1 ? 's' : '')
+      : '';
+    resultStatus.classList.toggle('visible', !!filtered);
+    noResult.classList.toggle('visible', !!filtered && visible === 0);
 
-    if (q) {{
-      status.textContent = visible + (visible > 1 ? ' articles' : ' article') + ' trouvé' + (visible > 1 ? 's' : '') + ' pour « ' + input.value + ' »';
-      status.classList.add('visible');
-    }} else {{
-      status.classList.remove('visible');
-    }}
-
-    noResult.classList.toggle('visible', visible === 0);
-    clearBtn.classList.toggle('visible', !!q);
+    requestAnimationFrame(revealVisibleCards);
   }}
 
-  input.addEventListener('input', applyFilter);
-  clearBtn.addEventListener('click', function() {{
+  input.addEventListener('input', applyFilters);
+  clear.addEventListener('click', function() {{
     input.value = '';
-    applyFilter();
     input.focus();
+    applyFilters();
   }});
 
-  pills.forEach(pill => {{
+  pills.forEach(function(pill) {{
     pill.addEventListener('click', function() {{
-      pills.forEach(p => p.classList.remove('actif'));
-      pill.classList.add('actif');
-    }});
-  }});
+      const href = pill.getAttribute('href');
+      const target = document.querySelector(href);
+      const same = activeTheme === pill.getAttribute('data-theme-link');
+      activeTheme = same ? '' : pill.getAttribute('data-theme-link');
 
-  const observer = new IntersectionObserver((entries) => {{
-    entries.forEach(entry => {{
-      if (entry.isIntersecting) {{
-        entry.target.classList.add('is-visible');
-        observer.unobserve(entry.target);
+      pills.forEach(function(p) {{ p.classList.remove('actif'); }});
+      if (!same) pill.classList.add('actif');
+      applyFilters();
+
+      if (!same && target && !input.value) {{
+        setTimeout(function() {{
+          target.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
+        }}, 20);
       }}
     }});
-  }}, {{ threshold: .08, rootMargin: '0px 0px -30px 0px' }});
-  cards.forEach(card => observer.observe(card));
+  }});
 
-  function updateToolbar() {{
-    toolbar.classList.toggle('scrolled', window.scrollY > 90);
+  // Apparition progressive des cartes au fil du scroll (JS uniquement :
+  // si ce script ne s'execute pas, les cartes restent simplement visibles
+  // par defaut grace au CSS — voir la regle .article-card).
+  if ('IntersectionObserver' in window) {{
+    cards.forEach(function(card, index) {{
+      card.classList.add('pre-reveal');
+      card.style.transitionDelay = Math.min((index % 4) * 70, 210) + 'ms';
+    }});
+    const revealObserver = new IntersectionObserver(function(entries) {{
+      entries.forEach(function(entry) {{
+        if (entry.isIntersecting) {{
+          entry.target.dataset.revealed = '1';
+          entry.target.classList.add('is-visible');
+          revealObserver.unobserve(entry.target);
+        }}
+      }});
+    }}, {{ rootMargin: '0px 0px -8% 0px', threshold: .08 }});
+    cards.forEach(function(card) {{ revealObserver.observe(card); }});
   }}
-  window.addEventListener('scroll', updateToolbar, {{passive:true}});
+
+  // Mise en relief du thème courant.
+  if ('IntersectionObserver' in window) {{
+    const sectionObserver = new IntersectionObserver(function(entries) {{
+      entries.forEach(function(entry) {{
+        if (!entry.isIntersecting || activeTheme) return;
+        const id = entry.target.id;
+        pills.forEach(function(pill) {{
+          pill.classList.toggle('actif', pill.getAttribute('href') === '#' + id);
+        }});
+      }});
+    }}, {{ rootMargin: '-35% 0px -55% 0px', threshold: 0 }});
+    sections.forEach(function(section) {{ sectionObserver.observe(section); }});
+  }}
+
+  // Toolbar "glass" plus présente après quelques pixels de scroll.
+  function updateToolbar() {{
+    if (!toolbar) return;
+    toolbar.classList.toggle('scrolled', window.scrollY > 80);
+  }}
+  window.addEventListener('scroll', updateToolbar, {{ passive: true }});
   updateToolbar();
 
   const progress = document.getElementById('reading-progress');
   function updateProgress() {{
     const doc = document.documentElement;
     const max = doc.scrollHeight - window.innerHeight;
-    progress.style.width = (max > 0 ? Math.min(100, (window.scrollY / max) * 100) : 0) + '%';
+    progress.style.width = (max > 0 ? (window.scrollY / max) * 100 : 0) + '%';
   }}
-  window.addEventListener('scroll', updateProgress, {{passive:true}});
+  window.addEventListener('scroll', updateProgress, {{ passive: true }});
   updateProgress();
 
   document.addEventListener('keydown', function(e) {{
@@ -890,39 +1451,8 @@ button,input{{font:inherit}} a{{color:inherit}}
     }}
   }});
 
-  const lightbox = document.getElementById('lightbox');
-  const lightboxImg = document.getElementById('lightbox-img');
-  const caption = document.getElementById('lightbox-caption');
-  const close = document.getElementById('lightbox-close');
-
-  document.querySelectorAll('.image-trigger').forEach(trigger => {{
-    trigger.addEventListener('click', function() {{
-      const img = trigger.querySelector('img');
-      if (!img) return;
-      lightboxImg.src = img.src;
-      lightboxImg.alt = img.alt || '';
-      caption.textContent = img.alt || '';
-      lightbox.classList.add('open');
-      lightbox.setAttribute('aria-hidden', 'false');
-      document.body.style.overflow = 'hidden';
-    }});
-  }});
-
-  function closeLightbox() {{
-    lightbox.classList.remove('open');
-    lightbox.setAttribute('aria-hidden', 'true');
-    lightboxImg.src = '';
-    document.body.style.overflow = '';
-  }}
-  close.addEventListener('click', closeLightbox);
-  lightbox.addEventListener('click', function(e) {{
-    if (e.target === lightbox) closeLightbox();
-  }});
-  document.addEventListener('keydown', function(e) {{
-    if (e.key === 'Escape') closeLightbox();
-  }});
-
-  applyFilter();
+  // Première vague d'animation : les cartes déjà visibles apparaissent immédiatement.
+  revealVisibleCards();
 }})();
 </script>
 </body>
@@ -941,7 +1471,7 @@ st.markdown(
     .block-container {{ padding-top: 1.15rem; padding-bottom: 2rem; }}
     #MainMenu, footer {{ visibility: hidden; }}
     .bandeau-app {{
-        position: relative; overflow: hidden; min-height: 235px;
+        position: relative; overflow: hidden; min-height: 205px;
         border-radius: 22px;
         background: #004E52;
         margin-bottom: 14px;
@@ -965,7 +1495,7 @@ st.markdown(
         display:flex; align-items:center; justify-content:center; flex-shrink:0;
         border:1px solid rgba(255,255,255,.16); backdrop-filter:blur(8px);
     }}
-    .bandeau-app h1 {{ color:#fff; font-family:"Source Sans Pro",sans-serif; font-weight:800; font-size:1.9rem; margin:0; letter-spacing:-.015em; }}
+    .bandeau-app h1 {{ color:#fff; font-family:"Source Sans Pro",sans-serif; font-weight:800; font-size:1.72rem; margin:0; letter-spacing:-.015em; }}
     .bandeau-app .sous-titre {{ color:rgba(255,255,255,.84); font-size:.92rem; margin:9px 0 0 60px; max-width:66ch; line-height:1.45; }}
     .badge-brouillon {{
         display:inline-flex; align-items:center; gap:6px; margin:13px 0 0 60px;
