@@ -1368,6 +1368,8 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
 # Interface Streamlit
 # --------------------------------------------------------------------------
 
+_BANNIERE_APP_URI = image_file_to_data_uri(COVER_IMAGE_PATH, max_width=1400, quality=84)
+
 st.markdown(
     f"""
 <style>
@@ -1433,8 +1435,6 @@ _ICONE_JOURNAL_SVG = """<svg width="24" height="24" viewBox="0 0 24 24" fill="no
   <line x1="6.5" y1="14" x2="17.5" y2="14" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round"/>
   <line x1="6.5" y1="17" x2="14" y2="17" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round"/>
 </svg>"""
-
-_BANNIERE_APP_URI = image_file_to_data_uri(COVER_IMAGE_PATH, max_width=1400, quality=84)
 
 _badge_brouillon_html = (
     f'<div class="badge-brouillon">💾 {len(st.session_state.articles)} article(s) enregistré(s) '
