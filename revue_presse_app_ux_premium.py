@@ -1050,7 +1050,7 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
     <div class="cover-stats">
       <div class="stat"><strong>{nb_articles}</strong><span>Articles</span></div>
       <div class="stat"><strong>{nb_themes}</strong><span>Thèmes</span></div>
-      <div class="stat"><strong>~{temps_lecture} min</strong><span>Lecture</span></div>
+      <div class="stat"><strong>≃{temps_lecture} min</strong><span>Lecture</span></div>
     </div>
   </div>
   <div class="cover-stripe"></div>
@@ -1093,7 +1093,7 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
 
 <footer class="footer">
   <img src="data:image/png;base64,{LOGO_INLI_B64}" alt="in'li - Groupe Action Logement">
-  <p>Revue de presse préparée pour un usage interne · {nb_articles} article{'s' if nb_articles > 1 else ''}</p>
+  <p>Revue de presse préparée par SA pour un usage interne · {nb_articles} article{'s' if nb_articles > 1 else ''}</p>
 </footer>
 <div class="footer-stripe"></div>
 
@@ -1403,7 +1403,7 @@ st.markdown(
 with st.sidebar:
     st.header("Informations generales")
     titre_revue = st.text_input("Titre de la revue", value="La Revue de Presse de la DPIEC")
-    numero_edition = st.text_input("Numero d'edition", value="8ème édition")
+    numero_edition = st.text_input("Numero d'edition", value="9ème édition")
 
     lundi = date.today() - timedelta(days=date.today().weekday())
     vendredi = lundi + timedelta(days=4)
@@ -1414,7 +1414,7 @@ with st.sidebar:
 
     intro = st.text_area(
         "Mot d'introduction (optionnel)",
-        placeholder="Ex. : Une semaine marquee par les annonces sur la reforme du DPE...",
+        placeholder="Ex. : Une semaine marquée par les annonces sur la reforme du DPE...",
         height=90,
     )
 
