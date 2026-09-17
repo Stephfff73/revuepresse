@@ -430,6 +430,14 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
         '<p class="intro intro-placeholder">Les informations essentielles de la semaine, réunies en un seul regard.</p>'
     )
 
+    citation_html = (
+        '<div class="editorial-quote" role="note" aria-label="Citation d’Aristote">'
+        '<span class="quote-mark" aria-hidden="true">“</span>'
+        '<p>Nous sommes ce que nous répétons chaque jour. L\'excellence n\'est pas un acte mais une habitude.</p>'
+        '<div class="quote-author"><span></span>Aristote</div>'
+        '</div>'
+    )
+
     return f"""<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -719,7 +727,7 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
   }}
   .cover h1 {{
     max-width: 620px; margin: 18px 0 16px;
-    color: var(--teal-dark); font-family: Georgia, "Times New Roman", serif;
+    color: var(--rose) !important; font-family: Georgia, "Times New Roman", serif;
     font-size: clamp(2.8rem, 5.2vw, 4.65rem); line-height: .97;
     letter-spacing: -.052em;
   }}
@@ -745,6 +753,40 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
     color: #405355; font-size: 1rem; line-height: 1.66;
   }}
   .intro-placeholder {{ color: #5E7072; }}
+  .editorial-quote {{
+    position: relative; max-width: 610px; margin: 18px 0 0;
+    padding: 16px 20px 14px 25px;
+    border-left: 3px solid var(--rose);
+    border-radius: 0 14px 14px 0;
+    background: linear-gradient(100deg, rgba(235,41,93,.065), rgba(255,255,255,.48));
+    box-shadow: 0 10px 28px rgba(0,78,82,.055);
+    overflow: hidden;
+  }}
+  .editorial-quote::after {{
+    content: ""; position: absolute; width: 90px; height: 90px;
+    right: -38px; top: -45px; border-radius: 50%;
+    background: rgba(235,41,93,.08); pointer-events: none;
+  }}
+  .quote-mark {{
+    position: absolute; left: 12px; top: 4px; color: var(--rose);
+    font-family: Georgia, serif; font-size: 2.2rem; line-height: 1;
+    opacity: .48;
+  }}
+  .editorial-quote p {{
+    position: relative; z-index: 1; margin: 0;
+    color: #334849; font-family: Georgia, "Times New Roman", serif;
+    font-size: .91rem; line-height: 1.55; font-style: italic;
+    letter-spacing: -.008em;
+  }}
+  .quote-author {{
+    position: relative; z-index: 1; display: flex; align-items: center; gap: 7px;
+    margin-top: 9px; color: var(--rose); font-size: .67rem; font-weight: 900;
+    letter-spacing: .13em; text-transform: uppercase;
+  }}
+  .quote-author span {{
+    display: inline-block; width: 20px; height: 1px;
+    background: var(--rose); opacity: .65;
+  }}
   .cover-stats {{
     display: flex; flex-wrap: wrap; gap: 0;
     margin-top: 25px; padding-top: 18px;
