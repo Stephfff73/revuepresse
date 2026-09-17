@@ -452,6 +452,10 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
     --teal: #004E52;
     --teal-dark: #013E42;
     --teal-light: #0C6E70;
+    --violet: #7A5AF8;
+    --green: #2E8B57;
+    --orange: #E67E22;
+    --blue: #3B82F6;
     --ink: #172021;
     --muted: #667174;
     --line: #E3E8E8;
@@ -882,8 +886,8 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
   /* ---------------- TOOLBAR ---------------- */
   .toolbar {{
     position: sticky; top: 0; z-index: 100;
-    display: grid; grid-template-columns: minmax(230px, 1fr) auto;
-    gap: 12px; align-items: center;
+    display: grid; grid-template-columns: minmax(280px, 1fr) minmax(0, 1.75fr);
+    gap: 16px; align-items: center;
     margin: 18px auto 34px; padding: 12px 42px;
     background: rgba(247,248,247,.92);
     border-top: 1px solid rgba(227,232,232,.8);
@@ -912,8 +916,8 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
   }}
   .clear-search.visible {{ display: block; }}
   .nav-sticky {{
-    display: flex; gap: 7px; overflow-x: auto; scrollbar-width: none;
-    padding-bottom: 1px;
+    display: flex; flex-wrap: wrap; justify-content: flex-end;
+    gap: 7px; overflow: visible; padding-bottom: 1px; min-width: 0;
   }}
   .nav-sticky::-webkit-scrollbar {{ display: none; }}
   .pill {{
@@ -1200,6 +1204,7 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
     .cover-media {{ object-position: 58% center; }}
     .cover-side-label {{ right: 22px; bottom: 30px; }}
     .toc, .theme-section {{ padding-left: 22px; padding-right: 22px; }}
+    .nav-sticky {{ justify-content: flex-start; }}
     .toolbar {{ padding: 10px 22px; grid-template-columns: 1fr; }}
     .result-status {{ margin-left: 22px; margin-right: 22px; }}
     .article-featured {{ grid-template-columns: 1fr; }}
@@ -1880,3 +1885,4 @@ if st.session_state.articles:
     )
 else:
     st.info("Ajoutez au moins un article pour pouvoir generer la revue.")
+
