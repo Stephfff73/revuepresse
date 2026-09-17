@@ -1252,6 +1252,7 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
         <span class="date-pill">{esc(sous_titre)}</span>
       </div>
       {intro_html}
+      {citation_html}
       <div class="cover-stats" aria-label="Chiffres clés de l'édition">
         <div class="stat"><strong>{nb_articles}</strong><span>Articles</span></div>
         <div class="stat"><strong>{nb_themes}</strong><span>Thèmes</span></div>
