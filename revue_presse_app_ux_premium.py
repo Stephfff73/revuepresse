@@ -396,16 +396,7 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
         </article>
         """
 
-    theme_colors = [
-    "c_pink",
-    "c_teal",
-    "c_brunswick",
-    "c_amarante",
-    "c_bordeaux",
-    "c_blue",
-    "c_keppel",
-    "c_cyan",
-]
+    theme_colors = ["c_pink", "c_teal", "c_brunswick", "c_amarante", "c_bordeaux", "c_blue", "c_keppel", "c_cyan"]
 
     def theme_color(index):
         return theme_colors[index % len(theme_colors)]
