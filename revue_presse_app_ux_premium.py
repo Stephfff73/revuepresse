@@ -36,16 +36,6 @@ THEMES_PAR_DEFAUT = [
     "Autre",
 ]
 
-# Palette de la charte graphique utilisée pour les thèmes
-c_pink = ' #E82473' 
-c_teal = ' #269A87'
-c_blue = '#008080'
-c_keppel = '#00AF98'
-c_cyan = '#008984'
-c_brunswick = '#00594E'
-c_amarante = '#B90745'
-c_bordeaux = '#9C0C35'
-
 MAX_IMAGE_WIDTH = 1200  # px — qualité élevée pour affichage, zoom et rendu premium
 
 # Logo in'li extrait de la revue existante (fond transparent)
@@ -313,7 +303,6 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
         source = esc(a.get("source"))
         date_article = esc(a.get("date"))
         synthese = esc(a.get("synthese"))
-        synthese_brute = str(a.get("synthese") or "").strip()
         lien = safe_url(a.get("lien"))
         theme_esc = esc(theme)
         recherche = esc(
@@ -331,26 +320,7 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
             if source
             else date_article
         )
-        # Une synthèse longue est compacte par défaut, mais reste entièrement
-        # accessible avec un bouton d'expansion. Cela évite d'allonger toutes
-        # les cartes tout en garantissant qu'aucune information éditoriale
-        # n'est perdue dans le HTML généré.
-        summary = ""
-        if synthese:
-            if len(synthese_brute) > 240 and not featured:
-                summary_id = f"synthese-{uuid.uuid4().hex}"
-                summary = (
-                    f'<div class="synthese-wrap">'
-                    f'<p class="synthese synthese-courte">{synthese}</p>'
-                    f'<p class="synthese synthese-complete" id="{summary_id}">{synthese}</p>'
-                    f'<button class="synthese-toggle" type="button" aria-expanded="false" aria-controls="{summary_id}">'
-                    f'<span>Voir la synthèse complète</span>'
-                    f'<span class="synthese-toggle-icon" aria-hidden="true">⌄</span>'
-                    f'</button>'
-                    f'</div>'
-                )
-            else:
-                summary = f'<p class="synthese">{synthese}</p>'
+        summary = f'<p class="synthese">{synthese}</p>' if synthese else ""
         cta = (
             f'<a class="lien-source" href="{lien}" target="_blank" rel="noopener noreferrer">'
             f'<span>Lire l’article</span><span class="cta-arrow">↗</span></a>'
@@ -398,14 +368,26 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
         </article>
         """
 
-    theme_colors = ["c_pink", "c_teal", "c_brunswick", "c_amarante", "c_bordeaux", "c_blue", "c_keppel", "c_cyan"]
+    # Palette officielle de la revue : les couleurs sont réutilisées
+    # dans le liseré gauche, l’index, la barre de progression et les accents
+    # de chaque thème du sommaire.
+    theme_colors = [
+        "c_pink",
+        "c_teal",
+        "c_brunswick",
+        "c_amarante",
+        "c_bordeaux",
+        "c_blue",
+        "c_keppel",
+        "c_cyan",
+    ]
 
     def theme_color(index):
         return theme_colors[index % len(theme_colors)]
 
     sommaire_html = "\n".join(
         f"""
-        <a class="toc-item" href="#theme-{i}" style="--theme-accent:{theme_color(i)}">
+        <a class="toc-item" href="#theme-{i}" style="--theme-accent:var(--{theme_color(i)})">
           <span class="toc-index">{i + 1:02d}</span>
           <span class="toc-main">
             <strong>{esc(theme)}</strong>
@@ -482,10 +464,15 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
     --teal: #004E52;
     --teal-dark: #013E42;
     --teal-light: #0C6E70;
-    --violet: #7A5AF8;
-    --green: #2E8B57;
-    --orange: #E67E22;
-    --blue: #3B82F6;
+    /* Palette graphique officielle */
+    --c_pink: #E82473;
+    --c_teal: #269A87;
+    --c_blue: #008080;
+    --c_keppel: #00AF98;
+    --c_cyan: #008984;
+    --c_brunswick: #00594E;
+    --c_amarante: #B90745;
+    --c_bordeaux: #9C0C35;
     --ink: #172021;
     --muted: #667174;
     --line: #E3E8E8;
@@ -1095,6 +1082,8 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
   .article-standard {{
     display: grid; grid-template-columns: 190px 1fr;
     min-height: 190px;
+    height: auto;
+    align-items: stretch;
   }}
   .standard-image {{
     position: relative; overflow: hidden; background: #E9EEEE;
@@ -1117,32 +1106,17 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
     font-family: Georgia, "Times New Roman", serif;
     font-size: 1.28rem; line-height: 1.18; letter-spacing: -.02em;
   }}
+  /* Les synthèses doivent rester intégralement accessibles.
+     La hauteur de la carte s’adapte automatiquement au contenu. */
   .standard-content .synthese {{
-    margin: 10px 0 13px; font-size: .86rem; line-height: 1.58;
+    display: block;
+    overflow: visible;
+    margin: 10px 0 13px;
+    font-size: .86rem;
+    line-height: 1.62;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }}
-  .synthese-wrap {{ margin: 0; }}
-  .synthese-wrap .synthese-courte {{
-    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3;
-    overflow: hidden; margin-bottom: 7px;
-  }}
-  .synthese-wrap .synthese-complete {{ display: none; }}
-  .article-standard.is-expanded .synthese-courte {{ display: none; }}
-  .article-standard.is-expanded .synthese-complete {{ display: block; }}
-  .synthese-toggle {{
-    display: inline-flex; align-items: center; gap: 6px;
-    margin: 0 0 13px; padding: 0; border: 0; background: transparent;
-    color: var(--rose); cursor: pointer; font-size: .74rem; font-weight: 900;
-    letter-spacing: .01em;
-  }}
-  .synthese-toggle:hover {{ color: var(--rose-dark); text-decoration: underline; }}
-  .synthese-toggle:focus-visible {{
-    outline: 2px solid var(--teal-light); outline-offset: 3px; border-radius: 4px;
-  }}
-  .synthese-toggle-icon {{
-    display: inline-block; font-size: .95rem; line-height: 1;
-    transition: transform .2s ease;
-  }}
-  .article-standard.is-expanded .synthese-toggle-icon {{ transform: rotate(180deg); }}
   .standard-content .lien-source {{
     margin-top: auto; padding: 7px 10px; background: transparent;
     color: var(--rose); border: 1px solid rgba(235,41,93,.22);
@@ -1284,9 +1258,7 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
     .footer {{ padding: 34px 22px; }}
   }}
   @media print {{
-    .toolbar, .reading-progress, .retour-sommaire, .zoom-hint, .zoom-icon, .lien-source, .synthese-toggle {{ display: none !important; }}
-    .synthese-courte {{ display: none !important; }}
-    .synthese-complete {{ display: block !important; }}
+    .toolbar, .reading-progress, .retour-sommaire, .zoom-hint, .zoom-icon, .lien-source {{ display: none !important; }}
     body {{ background: white; }}
     .cover {{ break-after: page; }}
     .theme-section {{ break-inside: avoid; }}
@@ -1428,18 +1400,6 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
   const pills = Array.from(document.querySelectorAll('.pill'));
   const toolbar = document.getElementById('toolbar');
   let activeTheme = '';
-
-  // Dépliage des synthèses longues des articles secondaires.
-  document.querySelectorAll('.synthese-toggle').forEach(function(button) {{
-    button.addEventListener('click', function() {{
-      const card = button.closest('.article-standard');
-      const expanded = card.classList.toggle('is-expanded');
-      button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-      button.querySelector('span:first-child').textContent = expanded
-        ? 'Réduire la synthèse'
-        : 'Voir la synthèse complète';
-    }});
-  }});
 
   function normalize(value) {{
     return (value || '').toLocaleLowerCase('fr').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
