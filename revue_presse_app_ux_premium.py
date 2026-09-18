@@ -37,6 +37,8 @@ THEMES_PAR_DEFAUT = [
 ]
 
 # Palette de la charte graphique utilisée pour les thèmes
+c_pink = ' #E82473' 
+c_teal = ' #269A87'
 c_blue = '#008080'
 c_keppel = '#00AF98'
 c_cyan = '#008984'
