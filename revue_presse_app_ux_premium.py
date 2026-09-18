@@ -368,7 +368,17 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
         </article>
         """
 
-    theme_colors = ["rose", "teal", "amarante", "keppel", "brunswick", "gray"]
+    # Palette officielle de la revue : les couleurs sont réutilisées
+    # dans le liseré gauche, l’index, la barre de progression et les accents
+    # de chaque thème du sommaire.
+    theme_colors = [
+        "c_amarante",
+        "c_blue",
+        "c_cyan",
+        "c_brunswick",
+        "c_keppel",
+        "c_bordeaux",
+    ]
 
     def theme_color(index):
         return theme_colors[index % len(theme_colors)]
@@ -452,10 +462,13 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
     --teal: #004E52;
     --teal-dark: #013E42;
     --teal-light: #0C6E70;
-    --violet: #7A5AF8;
-    --green: #2E8B57;
-    --orange: #E67E22;
-    --blue: #3B82F6;
+    /* Palette graphique officielle */
+    --c_blue: #008080;
+    --c_keppel: #00AF98;
+    --c_cyan: #008984;
+    --c_brunswick: #00594E;
+    --c_amarante: #B90745;
+    --c_bordeaux: #9C0C35;
     --ink: #172021;
     --muted: #667174;
     --line: #E3E8E8;
@@ -1065,6 +1078,8 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
   .article-standard {{
     display: grid; grid-template-columns: 190px 1fr;
     min-height: 190px;
+    height: auto;
+    align-items: stretch;
   }}
   .standard-image {{
     position: relative; overflow: hidden; background: #E9EEEE;
@@ -1087,9 +1102,16 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
     font-family: Georgia, "Times New Roman", serif;
     font-size: 1.28rem; line-height: 1.18; letter-spacing: -.02em;
   }}
+  /* Les synthèses doivent rester intégralement accessibles.
+     La hauteur de la carte s’adapte automatiquement au contenu. */
   .standard-content .synthese {{
-    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
-    overflow: hidden; margin: 10px 0 13px; font-size: .86rem;
+    display: block;
+    overflow: visible;
+    margin: 10px 0 13px;
+    font-size: .86rem;
+    line-height: 1.62;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }}
   .standard-content .lien-source {{
     margin-top: auto; padding: 7px 10px; background: transparent;
@@ -1885,4 +1907,3 @@ if st.session_state.articles:
     )
 else:
     st.info("Ajoutez au moins un article pour pouvoir generer la revue.")
-
