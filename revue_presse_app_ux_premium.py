@@ -36,6 +36,15 @@ THEMES_PAR_DEFAUT = [
     "Autre",
 ]
 
+# Palette de la charte graphique utilisée pour les thèmes
+c_pink = '#E82473'
+c_teal = '#269A87'
+c_brunswick = '#00594E'
+c_amarante = '#B90745'
+c_bordeaux = '#9C0C35'
+c_blue = '#008080'
+c_keppel = '#00AF98'
+c_cyan = '#008984'
 MAX_IMAGE_WIDTH = 1200  # px — qualité élevée pour affichage, zoom et rendu premium
 
 # Logo in'li extrait de la revue existante (fond transparent)
@@ -89,6 +98,7 @@ def sauvegarder_brouillon():
     donnees = {
         "articles": st.session_state.articles,
         "themes": st.session_state.themes,
+        "a_la_une": st.session_state.a_la_une,
     }
     try:
         with open(FICHIER_BROUILLON, "w", encoding="utf-8") as f:
@@ -97,12 +107,22 @@ def sauvegarder_brouillon():
         pass  # un probleme d'enregistrement ne doit jamais bloquer l'app
 
 
-if "articles" not in st.session_state or "themes" not in st.session_state:
+if "articles" not in st.session_state or "themes" not in st.session_state or "a_la_une" not in st.session_state:
     _brouillon = charger_brouillon()
     if "articles" not in st.session_state:
         st.session_state.articles = _brouillon["articles"] if _brouillon else []
     if "themes" not in st.session_state:
         st.session_state.themes = _brouillon["themes"] if _brouillon else THEMES_PAR_DEFAUT.copy()
+    if "a_la_une" not in st.session_state:
+        st.session_state.a_la_une = (_brouillon or {}).get("a_la_une", {}) if _brouillon else {}
+
+# Nettoie les sélections dont l'article n'existe plus.
+_ids_articles = {a.get("id") for a in st.session_state.articles}
+st.session_state.a_la_une = {
+    theme: article_id
+    for theme, article_id in st.session_state.a_la_une.items()
+    if article_id in _ids_articles
+}
 
 if "editing_id" not in st.session_state:
     st.session_state.editing_id = None
@@ -264,7 +284,7 @@ LOUPE_SVG = """
 """
 
 
-def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, themes_ordre):
+def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, themes_ordre, a_la_une=None):
     """Génère une revue de presse HTML éditorialisée, responsive et autonome.
 
     Principes UX/UI :
@@ -289,6 +309,10 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
     for a in articles:
         articles_par_theme.setdefault(a.get("theme", "Autre"), []).append(a)
 
+    # Article à la Une choisi indépendamment pour chaque thème.
+    # Repli sur le premier article pour les anciens brouillons.
+    a_la_une = a_la_une or {}
+
     themes_actifs = [t for t in themes_ordre if articles_par_theme.get(t)]
     # Sécurité si un article porte un thème absent de la liste configurée.
     themes_actifs += [t for t in articles_par_theme if t not in themes_actifs and articles_par_theme[t]]
@@ -303,6 +327,7 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
         source = esc(a.get("source"))
         date_article = esc(a.get("date"))
         synthese = esc(a.get("synthese"))
+        synthese_brute = str(a.get("synthese") or "").strip()
         lien = safe_url(a.get("lien"))
         theme_esc = esc(theme)
         recherche = esc(
@@ -320,7 +345,26 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
             if source
             else date_article
         )
-        summary = f'<p class="synthese">{synthese}</p>' if synthese else ""
+        # Une synthèse longue est compacte par défaut, mais reste entièrement
+        # accessible avec un bouton d'expansion. Cela évite d'allonger toutes
+        # les cartes tout en garantissant qu'aucune information éditoriale
+        # n'est perdue dans le HTML généré.
+        summary = ""
+        if synthese:
+            if len(synthese_brute) > 240 and not featured:
+                summary_id = f"synthese-{uuid.uuid4().hex}"
+                summary = (
+                    f'<div class="synthese-wrap">'
+                    f'<p class="synthese synthese-courte">{synthese}</p>'
+                    f'<p class="synthese synthese-complete" id="{summary_id}">{synthese}</p>'
+                    f'<button class="synthese-toggle" type="button" aria-expanded="false" aria-controls="{summary_id}">'
+                    f'<span>Voir la synthèse complète</span>'
+                    f'<span class="synthese-toggle-icon" aria-hidden="true">⌄</span>'
+                    f'</button>'
+                    f'</div>'
+                )
+            else:
+                summary = f'<p class="synthese">{synthese}</p>'
         cta = (
             f'<a class="lien-source" href="{lien}" target="_blank" rel="noopener noreferrer">'
             f'<span>Lire l’article</span><span class="cta-arrow">↗</span></a>'
@@ -368,26 +412,14 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
         </article>
         """
 
-    # Palette officielle de la revue : les couleurs sont réutilisées
-    # dans le liseré gauche, l’index, la barre de progression et les accents
-    # de chaque thème du sommaire.
-    theme_colors = [
-        "c_pink",
-        "c_teal",
-        "c_brunswick",
-        "c_amarante",
-        "c_bordeaux",
-        "c_blue",
-        "c_keppel",
-        "c_cyan",
-    ]
+    theme_colors = [c_pink, c_teal, c_brunswick, c_amarante, c_bordeaux, c_blue, c_keppel, c_cyan]
 
     def theme_color(index):
         return theme_colors[index % len(theme_colors)]
 
     sommaire_html = "\n".join(
         f"""
-        <a class="toc-item" href="#theme-{i}" style="--theme-accent:var(--{theme_color(i)})">
+        <a class="toc-item" href="#theme-{i}" style="--theme-accent:{theme_color(i)}">
           <span class="toc-index">{i + 1:02d}</span>
           <span class="toc-main">
             <strong>{esc(theme)}</strong>
@@ -412,8 +444,20 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
     article_global_index = 0
     for i, theme in enumerate(themes_actifs):
         theme_articles = articles_par_theme[theme]
+
+        # L'article sélectionné passe en première position et devient la Une.
+        selected_id = a_la_une.get(theme)
+        featured_article = next(
+            (a for a in theme_articles if a.get("id") == selected_id),
+            theme_articles[0],
+        )
+        theme_articles_ordered = [
+            featured_article,
+            *[a for a in theme_articles if a.get("id") != featured_article.get("id")],
+        ]
+
         cards = ""
-        for idx, a in enumerate(theme_articles):
+        for idx, a in enumerate(theme_articles_ordered):
             cards += article_card(
                 a,
                 article_global_index,
@@ -464,15 +508,10 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
     --teal: #004E52;
     --teal-dark: #013E42;
     --teal-light: #0C6E70;
-    /* Palette graphique officielle */
-    --c_pink: #E82473;
-    --c_teal: #269A87;
-    --c_blue: #008080;
-    --c_keppel: #00AF98;
-    --c_cyan: #008984;
-    --c_brunswick: #00594E;
-    --c_amarante: #B90745;
-    --c_bordeaux: #9C0C35;
+    --violet: #7A5AF8;
+    --green: #2E8B57;
+    --orange: #E67E22;
+    --blue: #3B82F6;
     --ink: #172021;
     --muted: #667174;
     --line: #E3E8E8;
@@ -1082,8 +1121,6 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
   .article-standard {{
     display: grid; grid-template-columns: 190px 1fr;
     min-height: 190px;
-    height: auto;
-    align-items: stretch;
   }}
   .standard-image {{
     position: relative; overflow: hidden; background: #E9EEEE;
@@ -1106,17 +1143,32 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
     font-family: Georgia, "Times New Roman", serif;
     font-size: 1.28rem; line-height: 1.18; letter-spacing: -.02em;
   }}
-  /* Les synthèses doivent rester intégralement accessibles.
-     La hauteur de la carte s’adapte automatiquement au contenu. */
   .standard-content .synthese {{
-    display: block;
-    overflow: visible;
-    margin: 10px 0 13px;
-    font-size: .86rem;
-    line-height: 1.62;
-    white-space: normal;
-    overflow-wrap: anywhere;
+    margin: 10px 0 13px; font-size: .86rem; line-height: 1.58;
   }}
+  .synthese-wrap {{ margin: 0; }}
+  .synthese-wrap .synthese-courte {{
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3;
+    overflow: hidden; margin-bottom: 7px;
+  }}
+  .synthese-wrap .synthese-complete {{ display: none; }}
+  .article-standard.is-expanded .synthese-courte {{ display: none; }}
+  .article-standard.is-expanded .synthese-complete {{ display: block; }}
+  .synthese-toggle {{
+    display: inline-flex; align-items: center; gap: 6px;
+    margin: 0 0 13px; padding: 0; border: 0; background: transparent;
+    color: var(--rose); cursor: pointer; font-size: .74rem; font-weight: 900;
+    letter-spacing: .01em;
+  }}
+  .synthese-toggle:hover {{ color: var(--rose-dark); text-decoration: underline; }}
+  .synthese-toggle:focus-visible {{
+    outline: 2px solid var(--teal-light); outline-offset: 3px; border-radius: 4px;
+  }}
+  .synthese-toggle-icon {{
+    display: inline-block; font-size: .95rem; line-height: 1;
+    transition: transform .2s ease;
+  }}
+  .article-standard.is-expanded .synthese-toggle-icon {{ transform: rotate(180deg); }}
   .standard-content .lien-source {{
     margin-top: auto; padding: 7px 10px; background: transparent;
     color: var(--rose); border: 1px solid rgba(235,41,93,.22);
@@ -1258,7 +1310,9 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
     .footer {{ padding: 34px 22px; }}
   }}
   @media print {{
-    .toolbar, .reading-progress, .retour-sommaire, .zoom-hint, .zoom-icon, .lien-source {{ display: none !important; }}
+    .toolbar, .reading-progress, .retour-sommaire, .zoom-hint, .zoom-icon, .lien-source, .synthese-toggle {{ display: none !important; }}
+    .synthese-courte {{ display: none !important; }}
+    .synthese-complete {{ display: block !important; }}
     body {{ background: white; }}
     .cover {{ break-after: page; }}
     .theme-section {{ break-inside: avoid; }}
@@ -1400,6 +1454,18 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
   const pills = Array.from(document.querySelectorAll('.pill'));
   const toolbar = document.getElementById('toolbar');
   let activeTheme = '';
+
+  // Dépliage des synthèses longues des articles secondaires.
+  document.querySelectorAll('.synthese-toggle').forEach(function(button) {{
+    button.addEventListener('click', function() {{
+      const card = button.closest('.article-standard');
+      const expanded = card.classList.toggle('is-expanded');
+      button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      button.querySelector('span:first-child').textContent = expanded
+        ? 'Réduire la synthèse'
+        : 'Voir la synthèse complète';
+    }});
+  }});
 
   function normalize(value) {{
     return (value || '').toLocaleLowerCase('fr').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -1842,6 +1908,7 @@ col_titre_liste.subheader(f"Articles de la semaine ({len(st.session_state.articl
 if st.session_state.articles:
     if col_vider.button("🗑️ Vider", use_container_width=True):
         st.session_state.articles = []
+        st.session_state.a_la_une = {}
         st.session_state.editing_id = None
         sauvegarder_brouillon()
         st.rerun()
@@ -1876,11 +1943,80 @@ else:
                     st.rerun()
 
 st.divider()
-st.subheader("Generer la revue")
+
+# --------------------------------------------------------------------------
+# Choix de l'article "À LA UNE" pour chaque thème
+# --------------------------------------------------------------------------
+if st.session_state.articles:
+    st.subheader("⭐ Choisir l'article à la Une de chaque thème")
+    st.caption(
+        "Choisissez l'article qui ouvrira chaque thème dans la revue. "
+        "La sélection est enregistrée automatiquement dans le brouillon."
+    )
+
+    articles_par_theme_ui = {theme: [] for theme in st.session_state.themes}
+    for article in st.session_state.articles:
+        articles_par_theme_ui.setdefault(article.get("theme", "Autre"), []).append(article)
+
+    themes_ui_actifs = [
+        theme for theme in st.session_state.themes if articles_par_theme_ui.get(theme)
+    ]
+    themes_ui_actifs += [
+        theme for theme in articles_par_theme_ui
+        if theme not in themes_ui_actifs and articles_par_theme_ui[theme]
+    ]
+
+    selections_modifiees = False
+
+    with st.expander("Définir les articles à la Une", expanded=True):
+        for theme_index, theme in enumerate(themes_ui_actifs):
+            articles_theme = articles_par_theme_ui[theme]
+            ids_theme = [a.get("id") for a in articles_theme]
+            current_id = st.session_state.a_la_une.get(theme)
+            if current_id not in ids_theme:
+                current_id = ids_theme[0]
+
+            articles_par_id = {a.get("id"): a for a in articles_theme}
+
+            def _libelle_article(article):
+                titre = article.get("titre") or article.get("source") or "Article sans titre"
+                source = article.get("source", "")
+                date_article = article.get("date", "")
+                return " — ".join(x for x in [titre, source, date_article] if x)
+
+            col_theme, col_select = st.columns([1.05, 2.95])
+            col_theme.markdown(
+                f"**{theme}**  \\n"
+                f"<span style='color:#667174;font-size:.82rem'>{len(articles_theme)} article{'s' if len(articles_theme) > 1 else ''}</span>",
+                unsafe_allow_html=True,
+            )
+            selected_id = col_select.selectbox(
+                "Article à la Une",
+                options=ids_theme,
+                index=ids_theme.index(current_id),
+                format_func=lambda article_id: _libelle_article(articles_par_id[article_id]),
+                key=f"a_la_une_{theme_index}_{theme}",
+                label_visibility="collapsed",
+                disabled=len(ids_theme) == 1,
+            )
+
+            if st.session_state.a_la_une.get(theme) != selected_id:
+                st.session_state.a_la_une[theme] = selected_id
+                selections_modifiees = True
+
+            if len(ids_theme) == 1:
+                col_select.caption("Seul article de ce thème — sélection automatique.")
+
+    if selections_modifiees:
+        sauvegarder_brouillon()
+
+    st.divider()
+    st.subheader("Generer la revue")
 
 if st.session_state.articles:
     html_final = generer_html(
-        titre_revue, numero_edition, sous_titre, intro, st.session_state.articles, st.session_state.themes
+        titre_revue, numero_edition, sous_titre, intro, st.session_state.articles, st.session_state.themes,
+        st.session_state.a_la_une
     )
 
     with st.expander("👁️ Apercu de la revue", expanded=True):
