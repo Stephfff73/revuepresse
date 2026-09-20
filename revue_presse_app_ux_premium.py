@@ -345,26 +345,10 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
             if source
             else date_article
         )
-        # Une synthèse longue est compacte par défaut, mais reste entièrement
-        # accessible avec un bouton d'expansion. Cela évite d'allonger toutes
-        # les cartes tout en garantissant qu'aucune information éditoriale
-        # n'est perdue dans le HTML généré.
-        summary = ""
-        if synthese:
-            if len(synthese_brute) > 240 and not featured:
-                summary_id = f"synthese-{uuid.uuid4().hex}"
-                summary = (
-                    f'<div class="synthese-wrap">'
-                    f'<p class="synthese synthese-courte">{synthese}</p>'
-                    f'<p class="synthese synthese-complete" id="{summary_id}">{synthese}</p>'
-                    f'<button class="synthese-toggle" type="button" aria-expanded="false" aria-controls="{summary_id}">'
-                    f'<span>Voir la synthèse complète</span>'
-                    f'<span class="synthese-toggle-icon" aria-hidden="true">⌄</span>'
-                    f'</button>'
-                    f'</div>'
-                )
-            else:
-                summary = f'<p class="synthese">{synthese}</p>'
+        # La synthèse est toujours affichée intégralement.
+        # La carte s'adapte automatiquement à sa longueur : aucune hauteur
+        # fixe ni troncature ne doit empêcher la lecture du contenu éditorial.
+        summary = f'<div class="synthese-wrap"><p class="synthese">{synthese}</p></div>' if synthese else ""
         cta = (
             f'<a class="lien-source" href="{lien}" target="_blank" rel="noopener noreferrer">'
             f'<span>Lire l’article</span><span class="cta-arrow">↗</span></a>'
@@ -1146,29 +1130,21 @@ def generer_html(titre_revue, numero_edition, sous_titre, intro, articles, theme
   .standard-content .synthese {{
     margin: 10px 0 13px; font-size: .86rem; line-height: 1.58;
   }}
-  .synthese-wrap {{ margin: 0; }}
-  .synthese-wrap .synthese-courte {{
-    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3;
-    overflow: hidden; margin-bottom: 7px;
+  .synthese-wrap {{
+    margin: 0;
+    height: auto;
+    overflow: visible;
   }}
-  .synthese-wrap .synthese-complete {{ display: none; }}
-  .article-standard.is-expanded .synthese-courte {{ display: none; }}
-  .article-standard.is-expanded .synthese-complete {{ display: block; }}
-  .synthese-toggle {{
-    display: inline-flex; align-items: center; gap: 6px;
-    margin: 0 0 13px; padding: 0; border: 0; background: transparent;
-    color: var(--rose); cursor: pointer; font-size: .74rem; font-weight: 900;
-    letter-spacing: .01em;
+  .synthese-wrap .synthese {{
+    display: block;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    margin: 10px 0 13px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: normal;
   }}
-  .synthese-toggle:hover {{ color: var(--rose-dark); text-decoration: underline; }}
-  .synthese-toggle:focus-visible {{
-    outline: 2px solid var(--teal-light); outline-offset: 3px; border-radius: 4px;
-  }}
-  .synthese-toggle-icon {{
-    display: inline-block; font-size: .95rem; line-height: 1;
-    transition: transform .2s ease;
-  }}
-  .article-standard.is-expanded .synthese-toggle-icon {{ transform: rotate(180deg); }}
   .standard-content .lien-source {{
     margin-top: auto; padding: 7px 10px; background: transparent;
     color: var(--rose); border: 1px solid rgba(235,41,93,.22);
