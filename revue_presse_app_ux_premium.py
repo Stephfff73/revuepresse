@@ -1655,7 +1655,7 @@ _ICONE_JOURNAL_SVG = """<svg width="24" height="24" viewBox="0 0 24 24" fill="no
 
 _badge_brouillon_html = (
     f'<div class="badge-brouillon">💾 {len(st.session_state.articles)} article(s) enregistré(s) '
-    'automatiquement — vous pouvez fermer la session et reprendre plus tard</div>'
+    'automatiquement, vous pouvez fermer la session et reprendre plus tard</div>'
     if st.session_state.articles
     else ""
 )
@@ -1759,7 +1759,7 @@ if article_en_edition:
     with st.form("formulaire_edition"):
         st.image(article_en_edition["image"], width=160)
         nouvelle_image = st.file_uploader(
-            "Remplacer la capture d'ecran (optionnel — laisser vide pour garder l'actuelle)",
+            "Remplacer la capture d'ecran (optionnel : laisser vide pour garder l'actuelle)",
             type=["png", "jpg", "jpeg", "webp"],
         )
         col_a, col_b = st.columns(2)
@@ -1958,7 +1958,7 @@ if st.session_state.articles:
                 titre = article.get("titre") or article.get("source") or "Article sans titre"
                 source = article.get("source", "")
                 date_article = article.get("date", "")
-                return " — ".join(x for x in [titre, source, date_article] if x)
+                return " - ".join(x for x in [titre, source, date_article] if x)
 
             col_theme, col_select = st.columns([1.05, 2.95])
             col_theme.markdown(
@@ -1981,7 +1981,7 @@ if st.session_state.articles:
                 selections_modifiees = True
 
             if len(ids_theme) == 1:
-                col_select.caption("Seul article de ce thème — sélection automatique.")
+                col_select.caption("Seul article de ce thème => sélection automatique.")
 
     if selections_modifiees:
         sauvegarder_brouillon()
