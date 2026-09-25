@@ -1819,7 +1819,7 @@ else:
         st.session_state.message_ajout = None
 
     v = st.session_state.form_version  # suffixe de cle : ne change qu'apres un ajout reussi
-    SOURCES_FREQUENTES = ["Les Echos", "Le Parisien", "Le Figaro", "Le Figaro Immobilier", "L'Opinion", "Autre"]
+    SOURCES_FREQUENTES = ["Les Echos", "Le Parisien", "Le Figaro", "Le Figaro Immobilier", "L'Opinion", "The Wall Street Journal", "Autre"]
 
     with st.form("formulaire_article"):
         image_upload = st.file_uploader(
