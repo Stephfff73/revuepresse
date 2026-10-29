@@ -32,7 +32,7 @@ THEMES_PAR_DEFAUT = [
     "Marché immobilier",
     "Réglementation & politique du logement",
     "Territoires & urbanisme",
-    "Ouvertue sur le monde",
+    "Ouverture sur le monde",
     "Energie",
     "Conjoncture & pouvoir d'achat",
     "Impayés de loyers",
