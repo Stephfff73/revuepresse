@@ -37,6 +37,9 @@ THEMES_PAR_DEFAUT = [
     "Conjoncture & pouvoir d'achat",
     "Impayés de loyers",
     "Logement intermédiaire/social",
+    "PropTech",
+    "Environnement",
+    "Transport",
     "Autre",
 ]
 
